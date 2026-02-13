@@ -34,8 +34,9 @@ class WooBooster_Bricks
      */
     public function init()
     {
-        add_filter('bricks/setup/control_options', array($this, 'register_query_type'));
-        add_filter('bricks/query/controls', array($this, 'register_query_controls'));
+        // NOTE: bricks/setup/control_options is registered at file-load time
+        // in woobooster.php (Phase 1). This init() only adds runtime hooks that
+        // fire during page rendering, not during Bricks' UI setup.
         add_filter('bricks/query/run', array($this, 'run_query'), 10, 2);
         add_filter('bricks/query/loop_object', array($this, 'set_loop_object'), 10, 3);
         add_filter('bricks/query/loop_object_id', array($this, 'set_loop_object_id'), 10, 3);

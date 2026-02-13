@@ -125,17 +125,29 @@ function woobooster_init()
 add_action('plugins_loaded', 'woobooster_init', 20);
 
 /**
- * Load Bricks Builder integration.
+ * Bricks Builder integration — Phase 1: Register query type.
  *
- * Runs on 'init' (priority 11) instead of 'plugins_loaded' because Bricks
- * processes its control_options during 'init'. If we add_filter too late,
- * our query type never appears in the dropdown.
+ * CRITICAL: This filter MUST be registered at file-load time (no hook wrapper).
+ * Bricks calls apply_filters('bricks/setup/control_options') during
+ * after_setup_theme when its Setup class initializes. Since plugins load
+ * BEFORE after_setup_theme, registering the filter here guarantees Bricks
+ * sees our query type in its dropdown.
  *
- * Detection uses multiple checks: the BRICKS_VERSION constant, the
- * \Bricks\Elements class, or the theme name — so it works regardless of
- * whether Bricks runs as parent theme, child theme, or plugin.
+ * If Bricks is not active, the filter simply never fires — zero overhead.
  */
-function woobooster_init_bricks()
+add_filter('bricks/setup/control_options', function ($control_options) {
+    $control_options['queryTypes']['woobooster_recommendations'] = esc_html__('WooBooster Recommendations', 'woobooster');
+    return $control_options;
+});
+
+/**
+ * Bricks Builder integration — Phase 2: Register runtime query hooks.
+ *
+ * These hooks fire during page rendering (not during Bricks' setup), so
+ * registering them on 'init' is fine. We still need Bricks + WooCommerce
+ * to be active before loading the class.
+ */
+function woobooster_init_bricks_runtime()
 {
     if (!class_exists('WooCommerce')) {
         return;
@@ -154,7 +166,7 @@ function woobooster_init_bricks()
     $bricks = new WooBooster_Bricks();
     $bricks->init();
 }
-add_action('init', 'woobooster_init_bricks', 11);
+add_action('init', 'woobooster_init_bricks_runtime', 11);
 
 /**
  * Declare compatibility with WooCommerce HPOS.
