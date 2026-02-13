@@ -10,8 +10,8 @@
   /* ── Autocomplete ─────────────────────────────────────────────────── */
 
   function initAutocomplete(inputId, hiddenId, dropdownId, getTaxonomy) {
-    var display  = document.getElementById(inputId);
-    var hidden   = document.getElementById(hiddenId);
+    var display = document.getElementById(inputId);
+    var hidden = document.getElementById(hiddenId);
     var dropdown = document.getElementById(dropdownId);
     if (!display || !hidden || !dropdown) return;
 
@@ -64,7 +64,7 @@
             item.dataset.name = t.name;
             item.addEventListener('click', function () {
               display.value = t.name;
-              hidden.value  = t.slug;
+              hidden.value = t.slug;
               dropdown.style.display = 'none';
             });
             dropdown.appendChild(item);
@@ -90,7 +90,7 @@
 
   function initSourceToggle() {
     var source = document.getElementById('wb-action-source');
-    var field  = document.getElementById('wb-action-value-field');
+    var field = document.getElementById('wb-action-value-field');
     if (!source || !field) return;
 
     function toggle() {
@@ -135,8 +135,8 @@
   /* ── Rule Tester ──────────────────────────────────────────────────── */
 
   function initRuleTester() {
-    var input   = document.getElementById('wb-test-product');
-    var btn     = document.getElementById('wb-test-btn');
+    var input = document.getElementById('wb-test-product');
+    var btn = document.getElementById('wb-test-btn');
     var results = document.getElementById('wb-test-results');
     if (!input || !btn || !results) return;
 
@@ -250,5 +250,45 @@
     initRuleToggles();
     initDeleteConfirm();
     initRuleTester();
+    initCheckUpdate();
   });
+
+  /* ── Check for Updates ──────────────────────────────────────────── */
+
+  function initCheckUpdate() {
+    var btn = document.getElementById('wb-check-update');
+    var result = document.getElementById('wb-update-result');
+    if (!btn || !result) return;
+
+    btn.addEventListener('click', function () {
+      btn.disabled = true;
+      btn.textContent = cfg.i18n.loading || 'Checking…';
+      result.textContent = '';
+
+      var fd = new FormData();
+      fd.append('action', 'woobooster_check_update');
+      fd.append('nonce', cfg.nonce);
+
+      fetch(cfg.ajaxUrl, { method: 'POST', body: fd })
+        .then(function (r) { return r.json(); })
+        .then(function (res) {
+          btn.disabled = false;
+          btn.textContent = 'Check for Updates Now';
+
+          if (res.success) {
+            result.style.color = res.data.has_update ? '#d63638' : '#00a32a';
+            result.textContent = res.data.message;
+          } else {
+            result.style.color = '#d63638';
+            result.textContent = res.data.message || 'Error checking for updates.';
+          }
+        })
+        .catch(function () {
+          btn.disabled = false;
+          btn.textContent = 'Check for Updates Now';
+          result.style.color = '#d63638';
+          result.textContent = 'Network error. Check your connection.';
+        });
+    });
+  }
 })();

@@ -22,6 +22,7 @@ class WooBooster_Admin
         add_action('admin_menu', array($this, 'add_menu'));
         add_action('admin_enqueue_scripts', array($this, 'enqueue_assets'));
         add_action('admin_init', array($this, 'handle_settings_save'));
+        add_action('wp_ajax_woobooster_check_update', array($this, 'ajax_check_update'));
     }
 
     /**
@@ -311,6 +312,20 @@ class WooBooster_Admin
         echo '</div>';
 
         echo '</form>';
+
+        // Check for Updates card.
+        echo '<div class="wb-card" style="margin-top:24px;">';
+        echo '<div class="wb-card__header"><h2>' . esc_html__('Plugin Updates', 'woobooster') . '</h2></div>';
+        echo '<div class="wb-card__body">';
+        echo '<p>' . esc_html__('Current version:', 'woobooster') . ' <strong>v' . esc_html(WOOBOOSTER_VERSION) . '</strong></p>';
+        echo '<p class="wb-field__desc">' . esc_html__('Click below to check GitHub for new releases. WordPress checks automatically every 12 hours.', 'woobooster') . '</p>';
+        echo '<div style="margin-top:12px;">';
+        echo '<button type="button" id="wb-check-update" class="wb-btn wb-btn--secondary">';
+        echo esc_html__('Check for Updates Now', 'woobooster');
+        echo '</button>';
+        echo '<span id="wb-update-result" style="margin-left:12px;"></span>';
+        echo '</div>';
+        echo '</div></div>';
     }
 
     /**
@@ -386,5 +401,52 @@ class WooBooster_Admin
     {
         $tester = new WooBooster_Rule_Tester();
         $tester->render();
+    }
+
+    /**
+     * AJAX: Force-check for plugin updates.
+     */
+    public function ajax_check_update()
+    {
+        check_ajax_referer('woobooster_admin', 'nonce');
+
+        if (!current_user_can('manage_woocommerce')) {
+            wp_send_json_error(array('message' => __('Permission denied.', 'woobooster')));
+        }
+
+        // Clear cached GitHub response.
+        delete_transient('woobooster_github_release');
+
+        // Clear WordPress update transient to force re-check.
+        delete_site_transient('update_plugins');
+
+        // Trigger a fresh update check.
+        wp_update_plugins();
+
+        // Read the result.
+        $update_transient = get_site_transient('update_plugins');
+        $basename = WOOBOOSTER_BASENAME;
+
+        if (isset($update_transient->response[$basename])) {
+            $new_version = $update_transient->response[$basename]->new_version;
+            wp_send_json_success(array(
+                'message' => sprintf(
+                    /* translators: %s: new version number */
+                    __('Update available: v%s. Go to Plugins page to update.', 'woobooster'),
+                    $new_version
+                ),
+                'has_update' => true,
+                'new_version' => $new_version,
+            ));
+        } else {
+            wp_send_json_success(array(
+                'message' => sprintf(
+                    /* translators: %s: current version */
+                    __('You are running the latest version (v%s).', 'woobooster'),
+                    WOOBOOSTER_VERSION
+                ),
+                'has_update' => false,
+            ));
+        }
     }
 }
