@@ -35,7 +35,8 @@ class WooBooster_Matcher
         }
 
         // Try object cache first.
-        $cache_key = 'woobooster_rec_' . $product_id;
+        $args_hash = md5(wp_json_encode($args));
+        $cache_key = 'woobooster_rec_' . $product_id . '_' . $args_hash;
         $cached = wp_cache_get($cache_key, 'woobooster');
 
         if (false !== $cached) {
@@ -123,10 +124,13 @@ class WooBooster_Matcher
             return null;
         }
 
+        // Sanitize all keys before use.
+        $condition_keys = array_map('sanitize_text_field', $condition_keys);
+
         // Build the IN clause safely.
         $placeholders = implode(', ', array_fill(0, count($condition_keys), '%s'));
 
-        // phpcs:ignore WordPress.DB.PreparedSQLPlaceholders.ReplacementsWrongNumber
+        // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
         $rule_id = $wpdb->get_var(
             $wpdb->prepare(
                 "SELECT rule_id FROM {$index_table}
@@ -144,7 +148,7 @@ class WooBooster_Matcher
         return $wpdb->get_row(
             $wpdb->prepare(
                 "SELECT * FROM {$rules_table} WHERE id = %d AND status = 1",
-                $rule_id
+                absint($rule_id)
             )
         );
     }

@@ -123,11 +123,19 @@ class WooBooster_Updater
             $this->github_repo
         );
 
+        $headers = array(
+            'Accept' => 'application/vnd.github.v3+json',
+            'User-Agent' => 'WooBooster-Updater/' . $this->current_version,
+        );
+
+        // Support private repos via token defined in wp-config.php:
+        // define( 'WOOBOOSTER_GITHUB_TOKEN', 'ghp_xxxxx' );
+        if (defined('WOOBOOSTER_GITHUB_TOKEN') && WOOBOOSTER_GITHUB_TOKEN) {
+            $headers['Authorization'] = 'token ' . WOOBOOSTER_GITHUB_TOKEN;
+        }
+
         $response = wp_remote_get($url, array(
-            'headers' => array(
-                'Accept' => 'application/vnd.github.v3+json',
-                'User-Agent' => 'WooBooster-Updater/' . $this->current_version,
-            ),
+            'headers' => $headers,
             'timeout' => 10,
         ));
 

@@ -76,6 +76,15 @@ class WooBooster_Rule_Form
         echo '</a>';
         echo '</div>';
 
+        // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+        if (isset($_GET['saved']) && '1' === $_GET['saved']) {
+            echo '<div class="wb-message wb-message--success">';
+            echo WooBooster_Icons::get('check'); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+            echo '<span>' . esc_html__('Rule saved successfully.', 'woobooster') . '</span>';
+            echo '</div>';
+        }
+
+
         echo '<form method="post" action="" class="wb-form">';
         wp_nonce_field('woobooster_save_rule', 'woobooster_rule_nonce');
 
