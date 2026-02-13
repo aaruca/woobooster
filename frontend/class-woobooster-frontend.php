@@ -19,13 +19,13 @@ class WooBooster_Frontend
      */
     public function init()
     {
-        $render_method = woobooster_get_option('render_method', 'bricks');
-
-        // Only use WooCommerce hook rendering if explicitly selected.
-        if ('woo_hook' === $render_method) {
-            remove_action('woocommerce_after_single_product_summary', 'woocommerce_output_related_products', 20);
-            add_action('woocommerce_after_single_product_summary', array($this, 'render_recommendations'), 20);
-        }
+        // Always replace WooCommerce's default related products with
+        // WooBooster's engine. If Bricks renders the product template,
+        // this hook simply never fires. If a classic/block theme is used,
+        // WooBooster takes over and falls back to WooCommerce related
+        // products when no rule matches.
+        remove_action('woocommerce_after_single_product_summary', 'woocommerce_output_related_products', 20);
+        add_action('woocommerce_after_single_product_summary', array($this, 'render_recommendations'), 20);
     }
 
     /**
