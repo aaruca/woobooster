@@ -119,17 +119,42 @@ function woobooster_init()
     $frontend = new WooBooster_Frontend();
     $frontend->init();
 
-    // Bricks Builder integration (conditional).
-    if (defined('BRICKS_VERSION')) {
-        require_once WOOBOOSTER_PATH . 'frontend/class-woobooster-bricks.php';
-        $bricks = new WooBooster_Bricks();
-        $bricks->init();
-    }
-
     // Shortcode.
     WooBooster_Shortcode::init();
 }
 add_action('plugins_loaded', 'woobooster_init', 20);
+
+/**
+ * Load Bricks Builder integration.
+ *
+ * Runs on 'init' (priority 11) instead of 'plugins_loaded' because Bricks
+ * processes its control_options during 'init'. If we add_filter too late,
+ * our query type never appears in the dropdown.
+ *
+ * Detection uses multiple checks: the BRICKS_VERSION constant, the
+ * \Bricks\Elements class, or the theme name — so it works regardless of
+ * whether Bricks runs as parent theme, child theme, or plugin.
+ */
+function woobooster_init_bricks()
+{
+    if (!class_exists('WooCommerce')) {
+        return;
+    }
+
+    // Detect Bricks via constant, class, or theme.
+    $bricks_active = defined('BRICKS_VERSION')
+        || class_exists('\\Bricks\\Elements')
+        || (wp_get_theme()->get_template() === 'bricks');
+
+    if (!$bricks_active) {
+        return;
+    }
+
+    require_once WOOBOOSTER_PATH . 'frontend/class-woobooster-bricks.php';
+    $bricks = new WooBooster_Bricks();
+    $bricks->init();
+}
+add_action('init', 'woobooster_init_bricks', 11);
 
 /**
  * Declare compatibility with WooCommerce HPOS.
