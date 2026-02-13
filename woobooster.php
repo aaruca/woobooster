@@ -3,7 +3,7 @@
  * Plugin Name:       WooBooster
  * Plugin URI:        https://example.com/woobooster
  * Description:       A rule-based product recommendation engine for WooCommerce with full Bricks Builder Query Loop integration.
- * Version:           1.0.0
+ * Version:           1.0.1
  * Requires at least: 6.0
  * Requires PHP:      7.4
  * Author:            Ale Aruca, Muhammad Adeel
@@ -22,7 +22,7 @@ if (!defined('ABSPATH')) {
 }
 
 // Plugin constants
-define('WOOBOOSTER_VERSION', '1.0.0');
+define('WOOBOOSTER_VERSION', '1.0.1');
 define('WOOBOOSTER_FILE', __FILE__);
 define('WOOBOOSTER_PATH', plugin_dir_path(__FILE__));
 define('WOOBOOSTER_URL', plugin_dir_url(__FILE__));
@@ -73,6 +73,36 @@ function woobooster_admin_notice_wc_missing()
     }
 }
 add_action('admin_notices', 'woobooster_admin_notice_wc_missing');
+
+/**
+ * Diagnostic notice: Bricks detection status.
+ * Only visible when WooBooster debug_mode is '1'.
+ */
+function woobooster_bricks_diagnostic_notice()
+{
+    // Only show on WooBooster admin pages or when debug is on.
+    $settings = get_option('woobooster_settings', array());
+    if (empty($settings['debug_mode']) || $settings['debug_mode'] !== '1') {
+        return;
+    }
+
+    $checks = array(
+        'BRICKS_VERSION defined' => defined('BRICKS_VERSION') ? 'YES (' . BRICKS_VERSION . ')' : 'NO',
+        'Bricks\Elements class' => class_exists('\Bricks\Elements') ? 'YES' : 'NO',
+        'Theme template' => wp_get_theme()->get_template(),
+        'WooCommerce active' => class_exists('WooCommerce') ? 'YES' : 'NO',
+        'WooBooster version' => WOOBOOSTER_VERSION,
+    );
+
+    echo '<div class="notice notice-info"><p><strong>WooBooster Bricks Diagnostic:</strong> ';
+    $parts = array();
+    foreach ($checks as $label => $value) {
+        $parts[] = esc_html($label) . ': <code>' . esc_html($value) . '</code>';
+    }
+    echo implode(' | ', $parts);
+    echo '</p></div>';
+}
+add_action('admin_notices', 'woobooster_bricks_diagnostic_notice');
 
 /**
  * Initialize the plugin after WooCommerce is loaded.
