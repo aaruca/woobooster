@@ -110,6 +110,10 @@ class WooBooster_Matcher
     /**
      * Find the matching rule from the lookup index.
      *
+     * Uses the fast index table for equals-only matching.
+     * The condition_operator column exists in the schema for future extensibility
+     * but is always 'equals' in this version.
+     *
      * @param array $condition_keys Composite keys (e.g. ['pa_brand:glock', 'pa_caliber:9mm']).
      * @return object|null The winning rule or null.
      */

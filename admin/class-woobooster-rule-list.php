@@ -142,15 +142,7 @@ class WooBooster_Rule_List extends WP_List_Table
      */
     protected function column_condition($item)
     {
-        $operator_labels = array(
-            'equals' => '=',
-            'not_equals' => '≠',
-            'contains' => '∋',
-        );
-        $op = isset($operator_labels[$item->condition_operator]) ? $operator_labels[$item->condition_operator] : $item->condition_operator;
-
-        return '<code>' . esc_html($item->condition_attribute) . '</code> '
-            . esc_html($op) . ' '
+        return '<code>' . esc_html($item->condition_attribute) . '</code> = '
             . '<code>' . esc_html($item->condition_value) . '</code>';
     }
 

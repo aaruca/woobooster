@@ -144,16 +144,8 @@ class WooBooster_Rule_Form
         echo '</select>';
         echo '</div></div>';
 
-        // Operator.
-        echo '<div class="wb-field">';
-        echo '<label class="wb-field__label" for="wb-condition-op">' . esc_html__('Operator', 'woobooster') . '</label>';
-        echo '<div class="wb-field__control">';
-        echo '<select id="wb-condition-op" name="condition_operator" class="wb-select">';
-        echo '<option value="equals"' . selected($condition_operator, 'equals', false) . '>' . esc_html__('Equals', 'woobooster') . '</option>';
-        echo '<option value="not_equals"' . selected($condition_operator, 'not_equals', false) . '>' . esc_html__('Not Equals', 'woobooster') . '</option>';
-        echo '<option value="contains"' . selected($condition_operator, 'contains', false) . '>' . esc_html__('Contains', 'woobooster') . '</option>';
-        echo '</select>';
-        echo '</div></div>';
+        // Operator — hardcoded to equals. Column kept in schema for future extensibility.
+        echo '<input type="hidden" name="condition_operator" value="equals">';
 
         // Value (AJAX autocomplete).
         echo '<div class="wb-field">';

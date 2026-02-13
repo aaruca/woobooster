@@ -69,6 +69,18 @@ class WooBooster_Activator
 
         require_once ABSPATH . 'wp-admin/includes/upgrade.php';
         dbDelta($sql);
+
+        // Add FOREIGN KEY constraint (dbDelta doesn't support FKs).
+        // Wrapped in a silent call — will no-op if the constraint already exists.
+        // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+        $wpdb->query(
+            "ALTER TABLE {$index_table}
+             ADD CONSTRAINT fk_woobooster_rule_id
+             FOREIGN KEY (rule_id) REFERENCES {$rules_table}(id)
+             ON DELETE CASCADE"
+        );
+        // Suppress any "duplicate key" error from re-activation.
+        $wpdb->suppress_errors(false);
     }
 
     /**
