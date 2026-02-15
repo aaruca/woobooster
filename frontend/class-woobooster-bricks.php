@@ -301,11 +301,20 @@ class WooBooster_Bricks
      */
     private function get_preview_product_id()
     {
-        // Try Bricks template preview post ID.
-        if (class_exists('\\Bricks\\Helpers') && method_exists('\\Bricks\\Helpers', 'get_template_setting')) {
-            $preview_id = \Bricks\Helpers::get_template_setting('templatePreviewPostId');
+        // Try Bricks Database page_data (safe — no args mismatch).
+        if (class_exists('\\Bricks\\Database')) {
+            $page_data = \Bricks\Database::$page_data ?? array();
+            $preview_id = isset($page_data['preview_or_post_id']) ? absint($page_data['preview_or_post_id']) : 0;
             if ($preview_id && get_post_type($preview_id) === 'product') {
-                return absint($preview_id);
+                return $preview_id;
+            }
+        }
+
+        // Fallback: check query vars / GET params.
+        if (!empty($_GET['preview_id'])) {
+            $preview_id = absint($_GET['preview_id']);
+            if ($preview_id && get_post_type($preview_id) === 'product') {
+                return $preview_id;
             }
         }
 
