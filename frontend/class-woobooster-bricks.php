@@ -79,7 +79,6 @@ class WooBooster_Bricks
             'tab' => 'content',
             'type' => 'group',
             'label' => esc_html__('WooBooster Settings', 'woobooster'),
-            'required' => array('query.objectType', '=', self::QUERY_TYPE), // Only show if our query type is active.
         );
 
         // 2. Add controls to this group.
