@@ -36,6 +36,13 @@ class WooBooster_Rule
     private static $conditions_table;
 
     /**
+     * Actions table name.
+     *
+     * @var string
+     */
+    private static $actions_table;
+
+    /**
      * Initialize table names.
      */
     private static function init_tables()
@@ -44,6 +51,7 @@ class WooBooster_Rule
         self::$table = $wpdb->prefix . 'woobooster_rules';
         self::$index_table = $wpdb->prefix . 'woobooster_rule_index';
         self::$conditions_table = $wpdb->prefix . 'woobooster_rule_conditions';
+        self::$actions_table = $wpdb->prefix . 'woobooster_rule_actions';
     }
 
     /**
