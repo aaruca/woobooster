@@ -3,7 +3,7 @@
  * Plugin Name:       WooBooster
  * Plugin URI:        https://example.com/woobooster
  * Description:       A rule-based product recommendation engine for WooCommerce with full Bricks Builder Query Loop integration.
- * Version:           1.0.3
+ * Version:           1.1.0
  * Requires at least: 6.0
  * Requires PHP:      7.4
  * Author:            Ale Aruca, Muhammad Adeel
@@ -22,11 +22,39 @@ if (!defined('ABSPATH')) {
 }
 
 // Plugin constants
-define('WOOBOOSTER_VERSION', '1.0.3');
+define('WOOBOOSTER_VERSION', '1.1.0');
 define('WOOBOOSTER_FILE', __FILE__);
 define('WOOBOOSTER_PATH', plugin_dir_path(__FILE__));
 define('WOOBOOSTER_URL', plugin_dir_url(__FILE__));
 define('WOOBOOSTER_BASENAME', plugin_basename(__FILE__));
+
+// Database schema version — bump when schema changes.
+define('WOOBOOSTER_DB_VERSION', '1.1.0');
+
+/**
+ * Run any pending database upgrades.
+ * Fires early on plugins_loaded so tables are ready before anything else.
+ */
+function woobooster_maybe_upgrade_db()
+{
+    $installed = get_option('woobooster_db_version', '1.0.0');
+
+    if (version_compare($installed, '1.1.0', '<')) {
+        global $wpdb;
+        $table = $wpdb->prefix . 'woobooster_rules';
+
+        // Add include_children column if it doesn't exist.
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery
+        $col = $wpdb->get_results("SHOW COLUMNS FROM {$table} LIKE 'include_children'");
+        if (empty($col)) {
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.SchemaChange
+            $wpdb->query("ALTER TABLE {$table} ADD COLUMN include_children TINYINT NOT NULL DEFAULT 0 AFTER condition_operator");
+        }
+
+        update_option('woobooster_db_version', '1.1.0');
+    }
+}
+add_action('plugins_loaded', 'woobooster_maybe_upgrade_db', 5);
 
 /**
  * Check WooCommerce dependency on activation.

@@ -251,7 +251,25 @@
     initDeleteConfirm();
     initRuleTester();
     initCheckUpdate();
+    initChildCategoryToggle();
   });
+
+  /* ── Child Category Toggle ─────────────────────────────────────────── */
+
+  function initChildCategoryToggle() {
+    var condAttr = document.getElementById('wb-condition-attr');
+    var childField = document.getElementById('wb-include-children-field');
+    if (!condAttr || !childField) return;
+
+    // Hierarchical taxonomies that support child categories.
+    var hierarchical = ['product_cat'];
+
+    function toggle() {
+      childField.style.display = hierarchical.indexOf(condAttr.value) !== -1 ? '' : 'none';
+    }
+    condAttr.addEventListener('change', toggle);
+    toggle();
+  }
 
   /* ── Check for Updates ──────────────────────────────────────────── */
 

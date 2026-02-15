@@ -44,6 +44,7 @@ class WooBooster_Activator
 			condition_attribute VARCHAR(100) NOT NULL,
 			condition_value VARCHAR(255) NOT NULL,
 			condition_operator VARCHAR(20) NOT NULL DEFAULT 'equals',
+			include_children TINYINT NOT NULL DEFAULT 0,
 			action_source VARCHAR(50) NOT NULL,
 			action_value VARCHAR(255) NOT NULL DEFAULT '',
 			action_orderby VARCHAR(50) NOT NULL DEFAULT 'rand',

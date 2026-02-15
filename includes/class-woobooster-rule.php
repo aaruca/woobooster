@@ -257,18 +257,38 @@ class WooBooster_Rule
             return;
         }
 
-        // Build the composite key.
-        $condition_key = sanitize_key($rule->condition_attribute) . ':' . sanitize_text_field($rule->condition_value);
+        // Collect all condition keys to index.
+        $condition_keys = array();
+        $condition_keys[] = sanitize_key($rule->condition_attribute) . ':' . sanitize_text_field($rule->condition_value);
 
-        $wpdb->insert(
-            self::$index_table,
-            array(
-                'condition_key' => $condition_key,
-                'rule_id' => absint($id),
-                'priority' => absint($rule->priority),
-            ),
-            array('%s', '%d', '%d')
-        );
+        // If include_children is enabled and taxonomy is hierarchical, expand to all descendants.
+        if (!empty($rule->include_children) && taxonomy_exists($rule->condition_attribute) && is_taxonomy_hierarchical($rule->condition_attribute)) {
+            $parent_term = get_term_by('slug', $rule->condition_value, $rule->condition_attribute);
+            if ($parent_term && !is_wp_error($parent_term)) {
+                $child_ids = get_term_children($parent_term->term_id, $rule->condition_attribute);
+                if (!is_wp_error($child_ids)) {
+                    foreach ($child_ids as $child_id) {
+                        $child_term = get_term($child_id, $rule->condition_attribute);
+                        if ($child_term && !is_wp_error($child_term)) {
+                            $condition_keys[] = sanitize_key($rule->condition_attribute) . ':' . sanitize_text_field($child_term->slug);
+                        }
+                    }
+                }
+            }
+        }
+
+        // Insert one index entry per condition key.
+        foreach ($condition_keys as $condition_key) {
+            $wpdb->insert(
+                self::$index_table,
+                array(
+                    'condition_key' => $condition_key,
+                    'rule_id' => absint($id),
+                    'priority' => absint($rule->priority),
+                ),
+                array('%s', '%d', '%d')
+            );
+        }
     }
 
     /**
@@ -282,21 +302,11 @@ class WooBooster_Rule
         // Truncate the index table.
         $wpdb->query($wpdb->prepare("TRUNCATE TABLE %i", self::$index_table));
 
-        // Get all active rules.
+        // Get all active rules and rebuild using per-rule logic (handles include_children).
         $rules = self::get_all(array('status' => 1, 'limit' => 10000));
 
         foreach ($rules as $rule) {
-            $condition_key = sanitize_key($rule->condition_attribute) . ':' . sanitize_text_field($rule->condition_value);
-
-            $wpdb->insert(
-                self::$index_table,
-                array(
-                    'condition_key' => $condition_key,
-                    'rule_id' => absint($rule->id),
-                    'priority' => absint($rule->priority),
-                ),
-                array('%s', '%d', '%d')
-            );
+            self::rebuild_index_for_rule($rule->id);
         }
     }
 
@@ -357,7 +367,11 @@ class WooBooster_Rule
 
         if (isset($data['action_limit'])) {
             $limit = absint($data['action_limit']);
-            $sanitized['action_limit'] = min(max($limit, 1), 8);
+            $sanitized['action_limit'] = max($limit, 1);
+        }
+
+        if (isset($data['include_children'])) {
+            $sanitized['include_children'] = absint($data['include_children']) ? 1 : 0;
         }
 
         if (isset($data['exclude_outofstock'])) {
@@ -386,6 +400,7 @@ class WooBooster_Rule
             'action_value' => '%s',
             'action_orderby' => '%s',
             'action_limit' => '%d',
+            'include_children' => '%d',
             'exclude_outofstock' => '%d',
         );
 

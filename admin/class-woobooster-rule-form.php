@@ -155,7 +155,18 @@ class WooBooster_Rule_Form
         echo '<input type="text" id="wb-condition-value-display" class="wb-input wb-autocomplete__input" placeholder="' . esc_attr__('Search terms…', 'woobooster') . '" value="' . esc_attr($condition_value_label) . '" autocomplete="off">';
         echo '<input type="hidden" id="wb-condition-value" name="condition_value" value="' . esc_attr($condition_value) . '">';
         echo '<div class="wb-autocomplete__dropdown" id="wb-condition-dropdown"></div>';
-        echo '</div>';
+        echo '</div></div>';
+
+        // Include Children (conditional — shown via JS only for hierarchical taxonomies).
+        $include_children = isset($rule->include_children) ? absint($rule->include_children) : 0;
+        echo '<div class="wb-field" id="wb-include-children-field" style="display:none;">';
+        echo '<label class="wb-field__label">' . esc_html__('Child Categories', 'woobooster') . '</label>';
+        echo '<div class="wb-field__control">';
+        echo '<label class="wb-checkbox">';
+        echo '<input type="checkbox" name="include_children" value="1"' . checked($include_children, 1, false) . '> ';
+        echo esc_html__('Apply this rule to all child (sub) categories as well', 'woobooster');
+        echo '</label>';
+        echo '<p class="wb-field__desc">' . esc_html__('When enabled, the rule will also match products in any descendant category.', 'woobooster') . '</p>';
         echo '</div></div>';
 
         echo '</div>'; // .wb-card__section
@@ -212,8 +223,8 @@ class WooBooster_Rule_Form
         echo '<div class="wb-field">';
         echo '<label class="wb-field__label" for="wb-action-limit">' . esc_html__('Limit', 'woobooster') . '</label>';
         echo '<div class="wb-field__control">';
-        echo '<input type="number" id="wb-action-limit" name="action_limit" value="' . esc_attr($action_limit) . '" min="1" max="8" class="wb-input wb-input--sm">';
-        echo '<p class="wb-field__desc">' . esc_html__('Maximum number of products to display (max 8).', 'woobooster') . '</p>';
+        echo '<input type="number" id="wb-action-limit" name="action_limit" value="' . esc_attr($action_limit) . '" min="1" class="wb-input wb-input--sm">';
+        echo '<p class="wb-field__desc"><strong>' . esc_html__('⚠️ High values (50+) may slow page load on large catalogs.', 'woobooster') . '</strong></p>';
         echo '</div></div>';
 
         // Exclude out of stock.
@@ -272,6 +283,7 @@ class WooBooster_Rule_Form
             'action_value' => isset($_POST['action_value']) ? sanitize_text_field(wp_unslash($_POST['action_value'])) : '',
             'action_orderby' => isset($_POST['action_orderby']) ? sanitize_key($_POST['action_orderby']) : 'rand',
             'action_limit' => isset($_POST['action_limit']) ? absint($_POST['action_limit']) : 4,
+            'include_children' => isset($_POST['include_children']) ? 1 : 0,
             'exclude_outofstock' => isset($_POST['exclude_outofstock']) ? 1 : 0,
         );
 

@@ -170,7 +170,6 @@ class WooBooster_Matcher
     {
         // Determine limit.
         $limit = isset($args['limit']) && $args['limit'] ? absint($args['limit']) : absint($rule->action_limit);
-        $limit = min($limit, 8);
 
         // Determine exclude outofstock.
         $global_exclude = '1' === woobooster_get_option('exclude_outofstock', '1');
@@ -371,6 +370,7 @@ class WooBooster_Matcher
                 'action_value' => $rule->action_value,
                 'action_orderby' => $rule->action_orderby,
                 'action_limit' => $rule->action_limit,
+                'include_children' => !empty($rule->include_children) ? 1 : 0,
             );
 
             // Step 4: Execute query.
@@ -378,7 +378,6 @@ class WooBooster_Matcher
 
             if ($resolved) {
                 $limit = absint($rule->action_limit);
-                $limit = min($limit, 8);
 
                 $query_args = array(
                     'post_type' => 'product',

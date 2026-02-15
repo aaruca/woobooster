@@ -347,7 +347,7 @@ class WooBooster_Bricks
      */
     private function get_fallback_products($product_id, $type, $limit)
     {
-        $limit = min(absint($limit), 8);
+        $limit = absint($limit);
 
         switch ($type) {
             case 'woo_related':
