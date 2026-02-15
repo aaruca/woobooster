@@ -222,7 +222,7 @@ class WooBooster_Bricks
      */
     public function set_loop_object_id($object_id, $loop_object, $query_obj)
     {
-        if ($query_obj->object_type !== self::QUERY_TYPE) {
+        if (!is_object($query_obj) || $query_obj->object_type !== self::QUERY_TYPE) {
             return $object_id;
         }
 
@@ -244,7 +244,7 @@ class WooBooster_Bricks
      */
     public function after_loop($query_obj)
     {
-        if ($query_obj->object_type !== self::QUERY_TYPE) {
+        if (!is_object($query_obj) || $query_obj->object_type !== self::QUERY_TYPE) {
             return;
         }
         wp_reset_postdata();
@@ -265,33 +265,51 @@ class WooBooster_Bricks
                 return absint(isset($settings['woobooster_product_id']) ? $settings['woobooster_product_id'] : 0);
 
             case 'cart':
-                if (function_exists('WC') && WC()->cart) {
-                    $cart_items = WC()->cart->get_cart();
-                    $last_item = end($cart_items);
-                    return $last_item ? absint($last_item['product_id']) : 0;
-                }
-                return 0;
+                return $this->get_cart_product_id();
 
             case 'current':
             default:
-                // Try global product first (standard product page).
+                // 1. Try global product (Product Page).
                 global $product;
                 if ($product && is_a($product, 'WC_Product')) {
                     return $product->get_id();
                 }
 
-                // Fallback to post ID if on a product post.
+                // 2. Check if on Cart page (Auto-detect).
+                if (function_exists('is_cart') && is_cart()) {
+                    return $this->get_cart_product_id();
+                }
+
+                // 3. Fallback to post ID if on a product post.
                 if (is_singular('product')) {
                     return get_the_ID();
                 }
 
-                // Try Bricks editor preview.
+                // 4. Try Bricks editor preview.
                 if ($this->is_bricks_builder()) {
                     return $this->get_preview_product_id();
                 }
 
                 return 0;
         }
+    }
+
+    /**
+     * Helper to get a product ID from the cart.
+     *
+     * @return int
+     */
+    private function get_cart_product_id()
+    {
+        if (function_exists('WC') && WC()->cart) {
+            $cart_items = WC()->cart->get_cart();
+            if (!empty($cart_items)) {
+                // Return the most recently added item (end of array).
+                $last_item = end($cart_items);
+                return isset($last_item['product_id']) ? absint($last_item['product_id']) : 0;
+            }
+        }
+        return 0;
     }
 
     /**

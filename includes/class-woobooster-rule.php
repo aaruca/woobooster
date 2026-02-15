@@ -143,22 +143,37 @@ class WooBooster_Rule
         global $wpdb;
         self::init_tables();
 
-        $sanitized = self::sanitize_rule_data($data);
-
-        $result = $wpdb->insert(
-            self::$table,
-            $sanitized,
-            self::get_format($sanitized)
+        $defaults = array(
+            'name' => '',
+            'priority' => 10,
+            'status' => 1,
+            'condition_attribute' => '',
+            'condition_operator' => 'equals',
+            'condition_value' => '',
+            'include_children' => 0,
+            // Legacy action fields (kept for backward compat during saving)
+            'action_source' => 'category',
+            'action_value' => '',
+            'action_orderby' => 'rand',
+            'action_limit' => 4,
         );
 
-        if (false === $result) {
-            return false;
+        $data = wp_parse_args($data, $defaults);
+        $data = self::sanitize_rule_data($data);
+
+        $inserted = $wpdb->insert(
+            self::$table,
+            $data,
+            self::get_format()
+        );
+
+        if ($inserted) {
+            $rule_id = $wpdb->insert_id;
+            self::rebuild_index_for_rule($rule_id);
+            return $rule_id;
         }
 
-        $rule_id = $wpdb->insert_id;
-        self::rebuild_index_for_rule($rule_id);
-
-        return $rule_id;
+        return false;
     }
 
     /**
@@ -173,21 +188,22 @@ class WooBooster_Rule
         global $wpdb;
         self::init_tables();
 
-        $sanitized = self::sanitize_rule_data($data);
+        $data = self::sanitize_rule_data($data);
 
-        $result = $wpdb->update(
+        $updated = $wpdb->update(
             self::$table,
-            $sanitized,
+            $data,
             array('id' => absint($id)),
-            self::get_format($sanitized),
+            self::get_format(),
             array('%d')
         );
 
-        if (false !== $result) {
+        if (false !== $updated) {
             self::rebuild_index_for_rule($id);
+            return true;
         }
 
-        return false !== $result;
+        return false;
     }
 
     /**
@@ -201,12 +217,12 @@ class WooBooster_Rule
         global $wpdb;
         self::init_tables();
 
-        // Remove from index first.
-        $wpdb->delete(
-            self::$index_table,
-            array('rule_id' => absint($id)),
-            array('%d')
-        );
+        // Delete from conditions and actions tables.
+        $wpdb->delete(self::$conditions_table, array('rule_id' => absint($id)), array('%d'));
+        $wpdb->delete(self::$actions_table, array('rule_id' => absint($id)), array('%d'));
+
+        // Delete from index.
+        $wpdb->delete(self::$index_table, array('rule_id' => absint($id)), array('%d'));
 
         return (bool) $wpdb->delete(
             self::$table,
@@ -291,6 +307,46 @@ class WooBooster_Rule
     }
 
     /**
+     * Get all actions for a rule.
+     *
+     * @param int $rule_id Rule ID.
+     * @return array List of action objects.
+     */
+    public static function get_actions($rule_id)
+    {
+        global $wpdb;
+        self::init_tables();
+
+        $rows = $wpdb->get_results(
+            $wpdb->prepare(
+                "SELECT * FROM %i WHERE rule_id = %d ORDER BY id ASC",
+                self::$actions_table,
+                absint($rule_id)
+            )
+        );
+
+        // Fallback to legacy rule columns if no action rows exist.
+        if (empty($rows)) {
+            $rule = self::get($rule_id);
+            if ($rule) {
+                return array(
+                    (object) array(
+                        'id' => 0,
+                        'rule_id' => $rule_id,
+                        'action_source' => $rule->action_source,
+                        'action_value' => $rule->action_value,
+                        'action_limit' => $rule->action_limit,
+                        'action_orderby' => $rule->action_orderby,
+                    ),
+                );
+            }
+            return array();
+        }
+
+        return $rows;
+    }
+
+    /**
      * Save condition groups for a rule.
      *
      * @param int   $rule_id Rule ID.
@@ -307,25 +363,63 @@ class WooBooster_Rule
         $wpdb->delete(self::$conditions_table, array('rule_id' => $rule_id), array('%d'));
 
         // Insert new conditions.
-        foreach ($groups as $group_id => $conditions) {
-            foreach ($conditions as $condition) {
-                $wpdb->insert(
-                    self::$conditions_table,
-                    array(
-                        'rule_id' => $rule_id,
-                        'group_id' => absint($group_id),
-                        'condition_attribute' => sanitize_key($condition['condition_attribute']),
-                        'condition_operator' => sanitize_key($condition['condition_operator'] ?? 'equals'),
-                        'condition_value' => sanitize_text_field($condition['condition_value']),
-                        'include_children' => absint($condition['include_children'] ?? 0),
-                    ),
-                    array('%d', '%d', '%s', '%s', '%s', '%d')
-                );
+        if (!empty($groups)) {
+            foreach ($groups as $group_id => $conditions) {
+                if (!empty($conditions)) {
+                    foreach ($conditions as $condition) {
+                        $wpdb->insert(
+                            self::$conditions_table,
+                            array(
+                                'rule_id' => $rule_id,
+                                'group_id' => absint($group_id),
+                                'condition_attribute' => sanitize_key($condition['condition_attribute']),
+                                'condition_operator' => sanitize_key($condition['condition_operator'] ?? 'equals'),
+                                'condition_value' => sanitize_text_field($condition['condition_value']),
+                                'include_children' => absint($condition['include_children'] ?? 0),
+                            ),
+                            array('%d', '%d', '%s', '%s', '%s', '%d')
+                        );
+                    }
+                }
             }
         }
 
         // Rebuild index.
         self::rebuild_index_for_rule($rule_id);
+    }
+
+    /**
+     * Save actions for a rule.
+     *
+     * @param int   $rule_id Rule ID.
+     * @param array $actions Array of actions.
+     */
+    public static function save_actions($rule_id, $actions)
+    {
+        global $wpdb;
+        self::init_tables();
+
+        $rule_id = absint($rule_id);
+
+        // Delete existing actions.
+        $wpdb->delete(self::$actions_table, array('rule_id' => $rule_id), array('%d'));
+
+        // Insert new actions.
+        if (!empty($actions)) {
+            foreach ($actions as $action) {
+                $wpdb->insert(
+                    self::$actions_table,
+                    array(
+                        'rule_id' => $rule_id,
+                        'action_source' => sanitize_key($action['action_source']),
+                        'action_value' => sanitize_text_field($action['action_value']),
+                        'action_limit' => absint($action['action_limit'] ?? 4),
+                        'action_orderby' => sanitize_key($action['action_orderby'] ?? 'rand'),
+                    ),
+                    array('%d', '%s', '%s', '%d', '%s')
+                );
+            }
+        }
     }
 
     /**

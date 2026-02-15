@@ -70,16 +70,34 @@ class WooBooster_Matcher
 
         $this->debug_log("Matched rule #{$rule->id} ({$rule->name}) for product {$product_id}");
 
-        // Step 4: Execute the product query.
-        $product_ids = $this->execute_query($product_id, $rule, $args, $terms);
+        // Step 4: Execute actions.
+        $all_product_ids = array();
+        $actions = WooBooster_Rule::get_actions($rule->id);
+
+        if (!empty($actions)) {
+            foreach ($actions as $action) {
+                $ids = $this->execute_query($product_id, $action, $args, $terms);
+                if (!empty($ids)) {
+                    $all_product_ids = array_merge($all_product_ids, $ids);
+                }
+            }
+        }
+
+        // Limit global results if override is set, otherwise deduplicate.
+        $all_product_ids = array_unique($all_product_ids);
+
+        // If a global hard limit was requested, apply it here too.
+        if (isset($args['limit']) && $args['limit'] > 0) {
+            $all_product_ids = array_slice($all_product_ids, 0, absint($args['limit']));
+        }
 
         // Step 5: Cache the result.
-        wp_cache_set($cache_key, $product_ids, 'woobooster', HOUR_IN_SECONDS);
+        wp_cache_set($cache_key, $all_product_ids, 'woobooster', HOUR_IN_SECONDS);
 
         $elapsed = round((microtime(true) - $start_time) * 1000, 2);
-        $this->debug_log("Recommendation query for product {$product_id}: {$elapsed}ms, returned " . count($product_ids) . ' products');
+        $this->debug_log("Recommendation query for product {$product_id}: {$elapsed}ms, returned " . count($all_product_ids) . ' products from ' . count($actions) . ' actions');
 
-        return $product_ids;
+        return $all_product_ids;
     }
 
     /**
@@ -224,29 +242,25 @@ class WooBooster_Matcher
     }
 
     /**
-     * Execute the product query based on the matched rule.
+     * Execute the product query based on the action configuration.
      *
      * @param int    $product_id Current product ID (excluded from results).
-     * @param object $rule       The matched rule.
+     * @param object $action     The action object.
      * @param array  $args       Override args (limit, exclude_outofstock).
      * @param array  $terms      Product terms for "same attribute" resolution.
      * @return array Array of product IDs.
      */
-    private function execute_query($product_id, $rule, $args, $terms)
+    private function execute_query($product_id, $action, $args, $terms)
     {
         // Determine limit.
-        $limit = isset($args['limit']) && $args['limit'] ? absint($args['limit']) : absint($rule->action_limit);
+        $limit = isset($args['limit']) && $args['limit'] ? absint($args['limit']) : absint($action->action_limit);
 
         // Determine exclude outofstock.
         $global_exclude = '1' === woobooster_get_option('exclude_outofstock', '1');
-        if (isset($args['exclude_outofstock'])) {
-            $exclude_outofstock = (bool) $args['exclude_outofstock'];
-        } else {
-            $exclude_outofstock = $rule->exclude_outofstock ? true : $global_exclude;
-        }
+        $exclude_outofstock = isset($args['exclude_outofstock']) ? (bool) $args['exclude_outofstock'] : $global_exclude;
 
         // Resolve taxonomy and term for the query.
-        $resolved = $this->resolve_action($rule, $terms);
+        $resolved = $this->resolve_action($action, $terms);
 
         if (!$resolved) {
             return array();
@@ -282,7 +296,7 @@ class WooBooster_Matcher
         }
 
         // Order by.
-        switch ($rule->action_orderby) {
+        switch ($action->action_orderby) {
             case 'bestselling':
                 $query_args['meta_key'] = 'total_sales';
                 $query_args['orderby'] = 'meta_value_num';
@@ -318,12 +332,10 @@ class WooBooster_Matcher
                 break;
         }
 
-        $this->debug_log('Query args: ' . wp_json_encode($query_args));
+        $this->debug_log('Query args for action: ' . wp_json_encode($query_args));
 
         $query = new WP_Query($query_args);
         $result_ids = $query->posts;
-
-        $this->debug_log('Result product IDs: ' . implode(', ', $result_ids));
 
         return $result_ids;
     }
@@ -331,35 +343,54 @@ class WooBooster_Matcher
     /**
      * Resolve the action taxonomy and term.
      *
-     * @param object $rule  The matched rule.
-     * @param array  $terms Product terms.
+     * @param object $action The action object.
+     * @param array  $terms  Product terms.
      * @return array|null ['taxonomy' => ..., 'term' => ...] or null.
      */
-    private function resolve_action($rule, $terms)
+    private function resolve_action($action, $terms)
     {
-        switch ($rule->action_source) {
+        switch ($action->action_source) {
             case 'category':
                 return array(
                     'taxonomy' => 'product_cat',
-                    'term' => $rule->action_value,
+                    'term' => $action->action_value,
                 );
 
             case 'tag':
                 return array(
                     'taxonomy' => 'product_tag',
-                    'term' => $rule->action_value,
+                    'term' => $action->action_value,
                 );
 
             case 'attribute':
-                // "Same Attribute" — use the condition's attribute and value.
                 return array(
-                    'taxonomy' => $rule->condition_attribute,
-                    'term' => $rule->condition_value,
+                    // If source is 'attribute', action_value contains property name (e.g., 'pa_brand').
+                    'taxonomy' => $action->action_value,
+                    // We need to find the term slug from the current product's terms.
+                    'term' => $this->find_term_slug_from_product($action->action_value, $terms),
                 );
 
             default:
                 return null;
         }
+    }
+
+    /**
+     * Find a term slug for a specific taxonomy from the product's terms.
+     *
+     * @param string $taxonomy Taxonomy name.
+     * @param array  $terms    Product terms.
+     * @return string|array Term slug(s).
+     */
+    private function find_term_slug_from_product($taxonomy, $terms)
+    {
+        $slugs = array();
+        foreach ($terms as $term) {
+            if ($term['taxonomy'] === $taxonomy) {
+                $slugs[] = $term['slug'];
+            }
+        }
+        return empty($slugs) ? '' : $slugs;
     }
 
     /**
@@ -396,7 +427,7 @@ class WooBooster_Matcher
             'terms' => array(),
             'keys' => array(),
             'matched_rule' => null,
-            'query_args' => array(),
+            'actions' => array(),
             'product_ids' => array(),
             'products' => array(),
             'time_ms' => 0,
@@ -429,62 +460,42 @@ class WooBooster_Matcher
                 'id' => $rule->id,
                 'name' => $rule->name,
                 'priority' => $rule->priority,
-                'condition_attribute' => $rule->condition_attribute,
-                'condition_operator' => $rule->condition_operator,
-                'condition_value' => $rule->condition_value,
-                'action_source' => $rule->action_source,
-                'action_value' => $rule->action_value,
-                'action_orderby' => $rule->action_orderby,
-                'action_limit' => $rule->action_limit,
-                'include_children' => !empty($rule->include_children) ? 1 : 0,
             );
 
-            // Step 4: Execute query.
-            $resolved = $this->resolve_action($rule, $terms);
+            // Step 4: Execute actions.
+            $actions = WooBooster_Rule::get_actions($rule->id);
+            foreach ($actions as $action) {
+                $resolved = $this->resolve_action($action, $terms);
 
-            if ($resolved) {
-                $limit = absint($rule->action_limit);
-
-                $query_args = array(
-                    'post_type' => 'product',
-                    'post_status' => 'publish',
-                    'posts_per_page' => $limit,
-                    'post__not_in' => array($product_id),
-                    'fields' => 'ids',
-                    'tax_query' => array(
-                        array(
-                            'taxonomy' => $resolved['taxonomy'],
-                            'field' => 'slug',
-                            'terms' => $resolved['term'],
-                        ),
-                    ),
+                $action_debug = array(
+                    'source' => $action->action_source,
+                    'value' => $action->action_value,
+                    'limit' => $action->action_limit,
+                    'orderby' => $action->action_orderby,
+                    'resolved_query' => $resolved,
+                    'results' => array()
                 );
 
-                if ($rule->exclude_outofstock) {
-                    $query_args['meta_query'] = array(
-                        array(
-                            'key' => '_stock_status',
-                            'value' => 'instock',
-                            'compare' => '=',
-                        ),
-                    );
+                if ($resolved) {
+                    $ids = $this->execute_query($product_id, $action, array(), $terms);
+                    $action_debug['results'] = $ids;
+                    $result['product_ids'] = array_merge($result['product_ids'], $ids); // Accumulate all
                 }
 
-                $result['query_args'] = $query_args;
+                $result['actions'][] = $action_debug;
+            }
 
-                $query = new WP_Query($query_args);
-                $result['product_ids'] = $query->posts;
+            $result['product_ids'] = array_unique($result['product_ids']);
 
-                foreach ($query->posts as $pid) {
-                    $p = wc_get_product($pid);
-                    if ($p) {
-                        $result['products'][] = array(
-                            'id' => $pid,
-                            'name' => $p->get_name(),
-                            'price' => $p->get_price_html(),
-                            'stock' => $p->get_stock_status(),
-                        );
-                    }
+            foreach ($result['product_ids'] as $pid) {
+                $p = wc_get_product($pid);
+                if ($p) {
+                    $result['products'][] = array(
+                        'id' => $pid,
+                        'name' => $p->get_name(),
+                        'price' => $p->get_price_html(),
+                        'stock' => $p->get_stock_status(),
+                    );
                 }
             }
         }

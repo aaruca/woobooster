@@ -224,26 +224,228 @@
     // Condition repeater.
     initConditionRepeater();
 
-    // Action autocomplete.
-    initAutocomplete(
-      'wb-action-value-display',
-      'wb-action-value',
-      'wb-action-dropdown',
-      function () {
-        var src = document.getElementById('wb-action-source');
-        if (!src) return '';
-        if (src.value === 'category') return 'product_cat';
-        if (src.value === 'tag') return 'product_tag';
-        return '';
-      }
-    );
+    // Action repeater.
+    initActionRepeater();
 
-    initSourceToggle();
     initRuleToggles();
     initDeleteConfirm();
     initRuleTester();
     initCheckUpdate();
   });
+
+  /* ── Action Repeater ─────────────────────────────────────────────── */
+
+  function initActionRepeater() {
+    var container = document.getElementById('wb-action-repeater');
+    var addBtn = document.getElementById('wb-add-action');
+    if (!container) return;
+
+    // Init existing rows.
+    container.querySelectorAll('.wb-action-row').forEach(function (row) {
+      bindActionRow(row);
+    });
+
+    // Add Action.
+    if (addBtn) {
+      addBtn.addEventListener('click', function () {
+        var newIdx = container.querySelectorAll('.wb-action-row').length;
+        var row = createActionRow(newIdx);
+        container.appendChild(row);
+        bindActionRow(row);
+        renumberActionFields();
+      });
+    }
+
+    // Remove Action.
+    container.addEventListener('click', function (e) {
+      if (e.target.classList.contains('wb-remove-action')) {
+        var row = e.target.closest('.wb-action-row');
+        if (container.querySelectorAll('.wb-action-row').length > 1) {
+          row.remove();
+          renumberActionFields();
+        } else {
+          alert('At least one action is required.');
+        }
+      }
+    });
+
+    function bindActionRow(row) {
+      initActionRowToggle(row);
+      initActionRowAutocomplete(row);
+    }
+
+    function createActionRow(idx) {
+      var row = document.createElement('div');
+      row.className = 'wb-action-row';
+      row.dataset.index = idx;
+      var prefix = 'actions[' + idx + ']';
+
+      row.innerHTML =
+        '<div class="wb-action-row__header">' +
+        '<span class="wb-action-row__title">Action <span class="wb-action-number">' + (idx + 1) + '</span></span>' +
+        '<button type="button" class="wb-btn wb-btn--danger wb-btn--xs wb-remove-action" title="Remove Action">&times;</button>' +
+        '</div>' +
+        '<div class="wb-action-row__body">' +
+
+        // Source Type
+        '<div class="wb-field">' +
+        '<label class="wb-field__label">Source Type</label>' +
+        '<div class="wb-field__control">' +
+        '<select name="' + prefix + '[action_source]" class="wb-select wb-action-source">' +
+        '<option value="category">Category</option>' +
+        '<option value="tag">Tag</option>' +
+        '<option value="attribute">Same Attribute</option>' +
+        '</select>' +
+        '<p class="wb-field__desc wb-attribute-desc" style="display:none;">"Same Attribute" uses the condition\'s attribute and value.</p>' +
+        '</div></div>' +
+
+        // Source Value
+        '<div class="wb-field wb-action-value-field">' +
+        '<label class="wb-field__label">Source Value</label>' +
+        '<div class="wb-field__control">' +
+        '<div class="wb-autocomplete">' +
+        '<input type="text" class="wb-input wb-autocomplete__input wb-action-value-display" placeholder="Search terms…" autocomplete="off">' +
+        '<input type="hidden" name="' + prefix + '[action_value]" class="wb-action-value-hidden">' +
+        '<div class="wb-autocomplete__dropdown"></div>' +
+        '</div>' +
+        '</div></div>' +
+
+        // Order By & Limit Row
+        '<div class="wb-field-row">' +
+
+        // Order By
+        '<div class="wb-field">' +
+        '<label class="wb-field__label">Order By</label>' +
+        '<div class="wb-field__control">' +
+        '<select name="' + prefix + '[action_orderby]" class="wb-select">' +
+        '<option value="rand">Random</option>' +
+        '<option value="date">Newest</option>' +
+        '<option value="price">Price (Low to High)</option>' +
+        '<option value="price_desc">Price (High to Low)</option>' +
+        '<option value="bestselling">Bestselling</option>' +
+        '<option value="rating">Rating</option>' +
+        '</select>' +
+        '</div></div>' +
+
+        // Limit
+        '<div class="wb-field">' +
+        '<label class="wb-field__label">Limit</label>' +
+        '<div class="wb-field__control">' +
+        '<input type="number" name="' + prefix + '[action_limit]" value="4" min="1" class="wb-input wb-input--sm">' +
+        '</div></div>' +
+
+        '</div>' + // .wb-field-row
+
+        '</div>'; // .wb-action-row__body
+
+      return row;
+    }
+
+    function renumberActionFields() {
+      container.querySelectorAll('.wb-action-row').forEach(function (row, i) {
+        row.dataset.index = i;
+        var num = row.querySelector('.wb-action-number');
+        if (num) num.textContent = i + 1;
+
+        var prefix = 'actions[' + i + ']';
+        row.querySelectorAll('[name]').forEach(function (el) {
+          var name = el.getAttribute('name');
+          if (name) {
+            el.setAttribute('name', name.replace(/actions\[\d+\]/, prefix));
+          }
+        });
+      });
+    }
+
+    function initActionRowToggle(row) {
+      var source = row.querySelector('.wb-action-source');
+      var valField = row.querySelector('.wb-action-value-field');
+      var attrDesc = row.querySelector('.wb-attribute-desc');
+
+      function toggle() {
+        if (source.value === 'attribute') {
+          valField.style.display = 'none';
+          attrDesc.style.display = 'block';
+        } else {
+          valField.style.display = 'block';
+          attrDesc.style.display = 'none';
+        }
+      }
+
+      if (source) {
+        source.addEventListener('change', toggle);
+        toggle();
+      }
+    }
+
+    function initActionRowAutocomplete(row) {
+      var display = row.querySelector('.wb-action-value-display');
+      var hidden = row.querySelector('.wb-action-value-hidden');
+      var dropdown = row.querySelector('.wb-autocomplete__dropdown');
+      var sourceSelect = row.querySelector('.wb-action-source');
+
+      if (!display || !hidden || !dropdown || !sourceSelect) return;
+
+      var debounce = null;
+
+      function getTaxonomy() {
+        if (sourceSelect.value === 'category') return 'product_cat';
+        if (sourceSelect.value === 'tag') return 'product_tag';
+        return '';
+      }
+
+      function searchTerms(search) {
+        var taxonomy = getTaxonomy();
+        if (!taxonomy) { dropdown.style.display = 'none'; return; }
+
+        var fd = new FormData();
+        fd.append('action', 'woobooster_search_terms');
+        fd.append('nonce', cfg.nonce);
+        fd.append('taxonomy', taxonomy);
+        fd.append('search', search);
+        fd.append('page', 1);
+
+        fetch(cfg.ajaxUrl, { method: 'POST', body: fd })
+          .then(function (r) { return r.json(); })
+          .then(function (res) {
+            if (!res.success) return;
+            dropdown.innerHTML = '';
+            res.data.terms.forEach(function (t) {
+              var item = document.createElement('div');
+              item.className = 'wb-autocomplete__item';
+              item.textContent = t.name + ' (' + t.count + ')';
+              item.addEventListener('click', function () {
+                display.value = t.name;
+                hidden.value = t.slug;
+                dropdown.style.display = 'none';
+              });
+              dropdown.appendChild(item);
+            });
+            dropdown.style.display = dropdown.children.length ? 'block' : 'none';
+          });
+      }
+
+      display.addEventListener('input', function () {
+        clearTimeout(debounce);
+        hidden.value = '';
+        debounce = setTimeout(function () { searchTerms(display.value); }, 300);
+      });
+
+      display.addEventListener('focus', function () {
+        if (!dropdown.children.length && display.value.length === 0) {
+          searchTerms('');
+        } else if (dropdown.children.length) {
+          dropdown.style.display = 'block';
+        }
+      });
+
+      document.addEventListener('click', function (e) {
+        if (!dropdown.contains(e.target) && e.target !== display) {
+          dropdown.style.display = 'none';
+        }
+      });
+    }
+  }
 
   /* ── Condition Repeater ──────────────────────────────────────────── */
 

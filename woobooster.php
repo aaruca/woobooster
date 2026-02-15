@@ -3,7 +3,7 @@
  * Plugin Name:       WooBooster
  * Plugin URI:        https://example.com/woobooster
  * Description:       A rule-based product recommendation engine for WooCommerce with full Bricks Builder Query Loop integration.
- * Version:           1.2.0
+ * Version:           1.3.0
  * Requires at least: 6.0
  * Requires PHP:      7.4
  * Author:            Ale Aruca, Muhammad Adeel
@@ -22,80 +22,106 @@ if (!defined('ABSPATH')) {
 }
 
 // Plugin constants
-define('WOOBOOSTER_VERSION', '1.2.0');
+define('WOOBOOSTER_VERSION', '1.3.0');
 define('WOOBOOSTER_FILE', __FILE__);
 define('WOOBOOSTER_PATH', plugin_dir_path(__FILE__));
 define('WOOBOOSTER_URL', plugin_dir_url(__FILE__));
 define('WOOBOOSTER_BASENAME', plugin_basename(__FILE__));
 
 // Database schema version — bump when schema changes.
-define('WOOBOOSTER_DB_VERSION', '1.2.0');
+define('WOOBOOSTER_DB_VERSION', '1.3.0');
 
 /**
- * Run any pending database upgrades.
- * Fires early on plugins_loaded so tables are ready before anything else.
+ * Run database updates on plugin load if versions mismatch.
  */
 function woobooster_maybe_upgrade_db()
 {
-    $installed = get_option('woobooster_db_version', '1.0.0');
+    $current_db_version = get_option('woobooster_db_version');
 
-    if (version_compare($installed, '1.1.0', '<')) {
+    if (version_compare($current_db_version, WOOBOOSTER_DB_VERSION, '<')) {
         global $wpdb;
-        $table = $wpdb->prefix . 'woobooster_rules';
+        require_once ABSPATH . 'wp-admin/includes/upgrade.php';
 
-        // Add include_children column if it doesn't exist.
-        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery
-        $col = $wpdb->get_results("SHOW COLUMNS FROM {$table} LIKE 'include_children'");
-        if (empty($col)) {
-            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.SchemaChange
-            $wpdb->query("ALTER TABLE {$table} ADD COLUMN include_children TINYINT NOT NULL DEFAULT 0 AFTER condition_operator");
+        $charset_collate = $wpdb->get_charset_collate();
+
+        // 1. Ensure `include_children` column exists (v1.1.0).
+        $rules_table = $wpdb->prefix . 'woobooster_rules';
+        $row = $wpdb->get_results("SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE table_name = '$rules_table' AND column_name = 'include_children'");
+        if (empty($row)) {
+            $wpdb->query("ALTER TABLE $rules_table ADD include_children tinyint(1) NOT NULL DEFAULT 0");
         }
 
-        update_option('woobooster_db_version', '1.1.0');
-    }
+        // 2. Create Conditions Table (v1.2.0).
+        $conditions_table = $wpdb->prefix . 'woobooster_rule_conditions';
+        $sql_conditions = "CREATE TABLE $conditions_table (
+            id bigint(20) NOT NULL AUTO_INCREMENT,
+            rule_id bigint(20) NOT NULL,
+            group_id int(11) NOT NULL DEFAULT 0,
+            condition_attribute varchar(255) NOT NULL,
+            condition_operator varchar(50) NOT NULL DEFAULT 'equals',
+            condition_value longtext NOT NULL,
+            include_children tinyint(1) NOT NULL DEFAULT 0,
+            PRIMARY KEY  (id),
+            KEY rule_id (rule_id)
+        ) $charset_collate;";
+        dbDelta($sql_conditions);
 
-    // 1.2.0: Add conditions table and migrate single-condition data.
-    if (version_compare($installed, '1.2.0', '<')) {
-        // Re-run create_tables to ensure conditions table exists.
-        require_once WOOBOOSTER_PATH . 'includes/class-woobooster-activator.php';
-        WooBooster_Activator::activate();
+        // Migrate v1.1 single conditions to v1.2 table.
+        $count = $wpdb->get_var("SELECT COUNT(*) FROM $conditions_table");
+        if (0 == $count) {
+            $legacy_rules = $wpdb->get_results("SELECT id, condition_attribute, condition_value, include_children FROM $rules_table WHERE condition_attribute != ''");
+            foreach ($legacy_rules as $rule) {
+                $wpdb->insert(
+                    $conditions_table,
+                    array(
+                        'rule_id' => $rule->id,
+                        'group_id' => 0,
+                        'condition_attribute' => $rule->condition_attribute,
+                        'condition_operator' => 'equals',
+                        'condition_value' => $rule->condition_value,
+                        'include_children' => $rule->include_children,
+                    )
+                );
+            }
+        }
 
-        // Migrate existing rules that have condition_attribute set
-        // into the new conditions table (group_id = 0).
-        global $wpdb;
-        $rules_table = $wpdb->prefix . 'woobooster_rules';
-        $cond_table = $wpdb->prefix . 'woobooster_rule_conditions';
+        // 3. Create Actions Table (v1.3.0).
+        $actions_table = $wpdb->prefix . 'woobooster_rule_actions';
+        $sql_actions = "CREATE TABLE $actions_table (
+            id bigint(20) NOT NULL AUTO_INCREMENT,
+            rule_id bigint(20) NOT NULL,
+            action_source varchar(50) NOT NULL,
+            action_value longtext NOT NULL,
+            action_limit int(11) NOT NULL DEFAULT 4,
+            action_orderby varchar(50) NOT NULL DEFAULT 'rand',
+            PRIMARY KEY  (id),
+            KEY rule_id (rule_id)
+        ) $charset_collate;";
+        dbDelta($sql_actions);
 
-        // Only migrate rules that have conditions and haven't been migrated yet.
-        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery
-        $existing = $wpdb->get_var("SELECT COUNT(*) FROM {$cond_table}");
-        if (0 === (int) $existing) {
-            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery
-            $rules = $wpdb->get_results(
-                "SELECT id, condition_attribute, condition_operator, condition_value, include_children
-                 FROM {$rules_table}
-                 WHERE condition_attribute != ''"
-            );
-
-            if ($rules) {
-                foreach ($rules as $r) {
+        // Migrate v1.2 single actions to v1.3 table.
+        $action_count = $wpdb->get_var("SELECT COUNT(*) FROM $actions_table");
+        if (0 == $action_count) {
+            // Check if legacy columns exist before selecting.
+            $action_cols = $wpdb->get_results("SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE table_name = '$rules_table' AND column_name = 'action_source'");
+            if (!empty($action_cols)) {
+                $legacy_actions = $wpdb->get_results("SELECT id, action_source, action_value, action_limit, action_orderby FROM $rules_table");
+                foreach ($legacy_actions as $rule) {
                     $wpdb->insert(
-                        $cond_table,
+                        $actions_table,
                         array(
-                            'rule_id' => absint($r->id),
-                            'group_id' => 0,
-                            'condition_attribute' => sanitize_key($r->condition_attribute),
-                            'condition_operator' => sanitize_key($r->condition_operator),
-                            'condition_value' => sanitize_text_field($r->condition_value),
-                            'include_children' => absint($r->include_children),
-                        ),
-                        array('%d', '%d', '%s', '%s', '%s', '%d')
+                            'rule_id' => $rule->id,
+                            'action_source' => $rule->action_source,
+                            'action_value' => $rule->action_value,
+                            'action_limit' => $rule->action_limit,
+                            'action_orderby' => $rule->action_orderby,
+                        )
                     );
                 }
             }
         }
 
-        update_option('woobooster_db_version', '1.2.0');
+        update_option('woobooster_db_version', WOOBOOSTER_DB_VERSION);
     }
 }
 add_action('plugins_loaded', 'woobooster_maybe_upgrade_db', 5);

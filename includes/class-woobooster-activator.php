@@ -35,8 +35,8 @@ class WooBooster_Activator
 
         $rules_table = $wpdb->prefix . 'woobooster_rules';
         $index_table = $wpdb->prefix . 'woobooster_rule_index';
-
         $conditions_table = $wpdb->prefix . 'woobooster_rule_conditions';
+        $actions_table = $wpdb->prefix . 'woobooster_rule_actions';
 
         $sql = "CREATE TABLE {$rules_table} (
 			id INT AUTO_INCREMENT,

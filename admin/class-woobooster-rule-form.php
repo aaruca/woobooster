@@ -223,61 +223,121 @@ class WooBooster_Rule_Form
         // ── Action ──────────────────────────────────────────────────────────
 
         echo '<div class="wb-card__section">';
-        echo '<h3>' . esc_html__('Action', 'woobooster') . '</h3>';
-        echo '<p class="wb-section-desc">' . esc_html__('Define which products to recommend when the condition matches.', 'woobooster') . '</p>';
+        echo '<h3>' . esc_html__('Actions', 'woobooster') . '</h3>';
+        echo '<p class="wb-section-desc">' . esc_html__('Define one or more actions to execute when the condition matches. Results from all actions will be merged.', 'woobooster') . '</p>';
 
-        // Source Type.
-        echo '<div class="wb-field">';
-        echo '<label class="wb-field__label" for="wb-action-source">' . esc_html__('Source Type', 'woobooster') . '</label>';
-        echo '<div class="wb-field__control">';
-        echo '<select id="wb-action-source" name="action_source" class="wb-select">';
-        echo '<option value="category"' . selected($action_source, 'category', false) . '>' . esc_html__('Category', 'woobooster') . '</option>';
-        echo '<option value="tag"' . selected($action_source, 'tag', false) . '>' . esc_html__('Tag', 'woobooster') . '</option>';
-        echo '<option value="attribute"' . selected($action_source, 'attribute', false) . '>' . esc_html__('Same Attribute', 'woobooster') . '</option>';
-        echo '</select>';
-        echo '<p class="wb-field__desc">' . esc_html__('"Same Attribute" uses the condition\'s attribute and value to find products with matching terms.', 'woobooster') . '</p>';
-        echo '</div></div>';
-
-        // Source Value (visible for category/tag).
-        echo '<div class="wb-field" id="wb-action-value-field">';
-        echo '<label class="wb-field__label" for="wb-action-value">' . esc_html__('Source Value', 'woobooster') . '</label>';
-        echo '<div class="wb-field__control">';
-        echo '<div class="wb-autocomplete" id="wb-action-autocomplete">';
-        echo '<input type="text" id="wb-action-value-display" class="wb-input wb-autocomplete__input" placeholder="' . esc_attr__('Search terms…', 'woobooster') . '" value="' . esc_attr($action_value_label) . '" autocomplete="off">';
-        echo '<input type="hidden" id="wb-action-value" name="action_value" value="' . esc_attr($action_value) . '">';
-        echo '<div class="wb-autocomplete__dropdown" id="wb-action-dropdown"></div>';
-        echo '</div>';
-        echo '</div></div>';
-
-        // Order By.
-        echo '<div class="wb-field">';
-        echo '<label class="wb-field__label" for="wb-action-orderby">' . esc_html__('Order By', 'woobooster') . '</label>';
-        echo '<div class="wb-field__control">';
-        echo '<select id="wb-action-orderby" name="action_orderby" class="wb-select">';
-        $orderbys = array(
-            'rand' => __('Random', 'woobooster'),
-            'date' => __('Newest', 'woobooster'),
-            'price' => __('Price (Low to High)', 'woobooster'),
-            'price_desc' => __('Price (High to Low)', 'woobooster'),
-            'bestselling' => __('Bestselling', 'woobooster'),
-            'rating' => __('Rating', 'woobooster'),
-        );
-        foreach ($orderbys as $key => $label) {
-            echo '<option value="' . esc_attr($key) . '"' . selected($action_orderby, $key, false) . '>' . esc_html($label) . '</option>';
+        $actions = $rule_id ? WooBooster_Rule::get_actions($rule_id) : array();
+        if (empty($actions)) {
+            $actions = array(
+                (object) array(
+                    'action_source' => 'category',
+                    'action_value' => '',
+                    'action_orderby' => 'rand',
+                    'action_limit' => 4,
+                )
+            );
         }
-        echo '</select>';
-        echo '</div></div>';
 
-        // Limit.
-        echo '<div class="wb-field">';
-        echo '<label class="wb-field__label" for="wb-action-limit">' . esc_html__('Limit', 'woobooster') . '</label>';
-        echo '<div class="wb-field__control">';
-        echo '<input type="number" id="wb-action-limit" name="action_limit" value="' . esc_attr($action_limit) . '" min="1" class="wb-input wb-input--sm">';
-        echo '<p class="wb-field__desc"><strong>' . esc_html__('⚠️ High values (50+) may slow page load on large catalogs.', 'woobooster') . '</strong></p>';
-        echo '</div></div>';
+        echo '<div id="wb-action-repeater">';
 
-        // Exclude out of stock.
-        echo '<div class="wb-field">';
+        foreach ($actions as $index => $action) {
+            $a_source = $action->action_source;
+            $a_value = $action->action_value;
+            $a_orderby = $action->action_orderby;
+            $a_limit = $action->action_limit;
+
+            // Resolve label for existing value.
+            $a_label = '';
+            if ($a_value) {
+                $action_tax = 'category' === $a_source ? 'product_cat' : ('tag' === $a_source ? 'product_tag' : '');
+                if ($action_tax) {
+                    $term = get_term_by('slug', $a_value, $action_tax);
+                    if ($term && !is_wp_error($term)) {
+                        $a_label = $term->name;
+                    }
+                }
+            }
+
+            $prefix = 'actions[' . $index . ']';
+
+            echo '<div class="wb-action-row" data-index="' . esc_attr($index) . '">';
+
+            // Header with Remove.
+            echo '<div class="wb-action-row__header">';
+            echo '<span class="wb-action-row__title">' . esc_html__('Action', 'woobooster') . ' <span class="wb-action-number">' . ($index + 1) . '</span></span>';
+            if ($index > 0 || count($actions) > 1) {
+                echo '<button type="button" class="wb-btn wb-btn--danger wb-btn--xs wb-remove-action" title="' . esc_attr__('Remove Action', 'woobooster') . '">&times;</button>';
+            }
+            echo '</div>';
+
+            echo '<div class="wb-action-row__body">';
+
+            // Source Type.
+            echo '<div class="wb-field">';
+            echo '<label class="wb-field__label">' . esc_html__('Source Type', 'woobooster') . '</label>';
+            echo '<div class="wb-field__control">';
+            echo '<select name="' . esc_attr($prefix . '[action_source]') . '" class="wb-select wb-action-source">';
+            echo '<option value="category"' . selected($a_source, 'category', false) . '>' . esc_html__('Category', 'woobooster') . '</option>';
+            echo '<option value="tag"' . selected($a_source, 'tag', false) . '>' . esc_html__('Tag', 'woobooster') . '</option>';
+            echo '<option value="attribute"' . selected($a_source, 'attribute', false) . '>' . esc_html__('Same Attribute', 'woobooster') . '</option>';
+            echo '</select>';
+            echo '<p class="wb-field__desc wb-attribute-desc" style="display:none;">' . esc_html__('"Same Attribute" uses the condition\'s attribute and value.', 'woobooster') . '</p>';
+            echo '</div></div>';
+
+            // Source Value.
+            echo '<div class="wb-field wb-action-value-field">';
+            echo '<label class="wb-field__label">' . esc_html__('Source Value', 'woobooster') . '</label>';
+            echo '<div class="wb-field__control">';
+            echo '<div class="wb-autocomplete">';
+            echo '<input type="text" class="wb-input wb-autocomplete__input wb-action-value-display" placeholder="' . esc_attr__('Search terms…', 'woobooster') . '" value="' . esc_attr($a_label) . '" autocomplete="off">';
+            echo '<input type="hidden" name="' . esc_attr($prefix . '[action_value]') . '" class="wb-action-value-hidden" value="' . esc_attr($a_value) . '">';
+            echo '<div class="wb-autocomplete__dropdown"></div>';
+            echo '</div>';
+            echo '</div></div>';
+
+            // Order By & Limit Row.
+            echo '<div class="wb-field-row">';
+
+            // Order By.
+            echo '<div class="wb-field">';
+            echo '<label class="wb-field__label">' . esc_html__('Order By', 'woobooster') . '</label>';
+            echo '<div class="wb-field__control">';
+            echo '<select name="' . esc_attr($prefix . '[action_orderby]') . '" class="wb-select">';
+            $orderbys = array(
+                'rand' => __('Random', 'woobooster'),
+                'date' => __('Newest', 'woobooster'),
+                'price' => __('Price (Low to High)', 'woobooster'),
+                'price_desc' => __('Price (High to Low)', 'woobooster'),
+                'bestselling' => __('Bestselling', 'woobooster'),
+                'rating' => __('Rating', 'woobooster'),
+            );
+            foreach ($orderbys as $key => $label) {
+                echo '<option value="' . esc_attr($key) . '"' . selected($a_orderby, $key, false) . '>' . esc_html($label) . '</option>';
+            }
+            echo '</select>';
+            echo '</div></div>';
+
+            // Limit.
+            echo '<div class="wb-field">';
+            echo '<label class="wb-field__label">' . esc_html__('Limit', 'woobooster') . '</label>';
+            echo '<div class="wb-field__control">';
+            echo '<input type="number" name="' . esc_attr($prefix . '[action_limit]') . '" value="' . esc_attr($a_limit) . '" min="1" class="wb-input wb-input--sm">';
+            echo '</div></div>';
+
+            echo '</div>'; // .wb-field-row
+
+            echo '</div>'; // .wb-action-row__body
+            echo '</div>'; // .wb-action-row
+        }
+
+        echo '</div>'; // #wb-action-repeater
+
+        echo '<button type="button" class="wb-btn wb-btn--subtle wb-btn--sm" id="wb-add-action">';
+        echo '+ ' . esc_html__('Add Action', 'woobooster');
+        echo '</button>';
+
+        // Global Exclude (applies to all).
+        echo '<div class="wb-field" style="margin-top: 24px; border-top: 1px solid #eee; padding-top: 24px;">';
         echo '<label class="wb-field__label">' . esc_html__('Exclude Out of Stock', 'woobooster') . '</label>';
         echo '<div class="wb-field__control">';
         echo '<label class="wb-toggle">';
@@ -321,15 +381,39 @@ class WooBooster_Rule_Form
 
         $rule_id = isset($_POST['rule_id']) ? absint($_POST['rule_id']) : 0;
 
-        // Build rule data (without inline condition fields).
+        // Process Actions.
+        $raw_actions = isset($_POST['actions']) && is_array($_POST['actions']) ? $_POST['actions'] : array();
+        $clean_actions = array();
+
+        foreach ($raw_actions as $action) {
+            $clean_actions[] = array(
+                'action_source' => isset($action['action_source']) ? sanitize_key($action['action_source']) : 'category',
+                'action_value' => isset($action['action_value']) ? sanitize_text_field(wp_unslash($action['action_value'])) : '',
+                'action_limit' => isset($action['action_limit']) ? absint($action['action_limit']) : 4,
+                'action_orderby' => isset($action['action_orderby']) ? sanitize_key($action['action_orderby']) : 'rand',
+            );
+        }
+
+        // Fallback for legacy columns (use first action).
+        $first_action = !empty($clean_actions) ? reset($clean_actions) : array(
+            'action_source' => 'category',
+            'action_value' => '',
+            'action_limit' => 4,
+            'action_orderby' => 'rand'
+        );
+
+        // Build rule data.
         $data = array(
             'name' => isset($_POST['rule_name']) ? sanitize_text_field(wp_unslash($_POST['rule_name'])) : '',
             'priority' => isset($_POST['rule_priority']) ? absint($_POST['rule_priority']) : 10,
             'status' => isset($_POST['rule_status']) ? 1 : 0,
-            'action_source' => isset($_POST['action_source']) ? sanitize_key($_POST['action_source']) : 'category',
-            'action_value' => isset($_POST['action_value']) ? sanitize_text_field(wp_unslash($_POST['action_value'])) : '',
-            'action_orderby' => isset($_POST['action_orderby']) ? sanitize_key($_POST['action_orderby']) : 'rand',
-            'action_limit' => isset($_POST['action_limit']) ? absint($_POST['action_limit']) : 4,
+
+            // Legacy columns population.
+            'action_source' => $first_action['action_source'],
+            'action_value' => $first_action['action_value'],
+            'action_orderby' => $first_action['action_orderby'],
+            'action_limit' => $first_action['action_limit'],
+
             'exclude_outofstock' => isset($_POST['exclude_outofstock']) ? 1 : 0,
         );
 
@@ -373,6 +457,11 @@ class WooBooster_Rule_Form
 
         if (!empty($condition_groups)) {
             WooBooster_Rule::save_conditions($rule_id, $condition_groups);
+        }
+
+        // Save multi-actions.
+        if (!empty($clean_actions)) {
+            WooBooster_Rule::save_actions($rule_id, $clean_actions);
         }
 
         wp_safe_redirect(admin_url('admin.php?page=woobooster-rules&action=edit&rule_id=' . $rule_id . '&saved=1'));
