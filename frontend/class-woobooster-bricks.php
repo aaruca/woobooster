@@ -77,8 +77,9 @@ class WooBooster_Bricks
         // It will sit below the standard "Content" controls.
         $controls['woobooster_settings_group'] = array(
             'tab' => 'content',
-            'type' => 'group',
+            'type' => 'separator',
             'label' => esc_html__('WooBooster Settings', 'woobooster'),
+            // 'required' => array('query.objectType', '=', self::QUERY_TYPE), 
         );
 
         // 2. Add controls to this group.
@@ -86,7 +87,7 @@ class WooBooster_Bricks
         // Product Source.
         $controls['woobooster_source'] = array(
             'tab' => 'content',
-            'group' => 'woobooster_settings_group',
+            // 'group' => 'woobooster_settings_group',
             'label' => esc_html__('Product Source', 'woobooster'),
             'type' => 'select',
             'options' => array(
@@ -100,19 +101,18 @@ class WooBooster_Bricks
         // Manual Product ID.
         $controls['woobooster_product_id'] = array(
             'tab' => 'content',
-            'group' => 'woobooster_settings_group',
+            // 'group' => 'woobooster_settings_group',
             'label' => esc_html__('Product ID', 'woobooster'),
             'type' => 'number',
             'required' => array(
-                array('query.objectType', '=', self::QUERY_TYPE),
-                array('woobooster_source', '=', 'manual'), // Note: removed 'query.' prefix as it's now a sibling control? No, local check.
+                array('woobooster_source', '=', 'manual'),
             ),
         );
 
         // Override Limit.
         $controls['woobooster_limit'] = array(
             'tab' => 'content',
-            'group' => 'woobooster_settings_group',
+            // 'group' => 'woobooster_settings_group',
             'label' => esc_html__('Max Products (override)', 'woobooster'),
             'type' => 'number',
             'default' => '',
@@ -122,7 +122,7 @@ class WooBooster_Bricks
         // Exclude Out of Stock.
         $controls['woobooster_exclude_outofstock'] = array(
             'tab' => 'content',
-            'group' => 'woobooster_settings_group',
+            // 'group' => 'woobooster_settings_group',
             'label' => esc_html__('Exclude Out of Stock', 'woobooster'),
             'type' => 'checkbox',
             'default' => true,
@@ -131,7 +131,7 @@ class WooBooster_Bricks
         // Fallback.
         $controls['woobooster_fallback'] = array(
             'tab' => 'content',
-            'group' => 'woobooster_settings_group',
+            // 'group' => 'woobooster_settings_group',
             'label' => esc_html__('Fallback if No Match', 'woobooster'),
             'type' => 'select',
             'options' => array(
