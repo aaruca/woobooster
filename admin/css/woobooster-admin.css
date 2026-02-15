@@ -773,3 +773,78 @@
 .woobooster-admin .tablenav-pages {
   float: right;
 }
+
+/* ═══════════════════════════════════════════════════════════════════
+   18. CONDITION REPEATER
+   ═══════════════════════════════════════════════════════════════════ */
+.wb-condition-group {
+  background: var(--wb-color-neutral-background-1);
+  border: 1px solid var(--wb-color-neutral-stroke-2);
+  border-radius: var(--wb-radius-md);
+  padding: var(--wb-spacing-lg);
+  margin-bottom: var(--wb-spacing-lg);
+  box-shadow: var(--wb-shadow-2);
+}
+
+.wb-condition-group__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--wb-spacing-md);
+  padding-bottom: var(--wb-spacing-sm);
+  border-bottom: 1px solid var(--wb-color-neutral-stroke-2);
+}
+
+.wb-condition-group__label {
+  font-weight: var(--wb-font-weight-semibold);
+  font-size: var(--wb-font-size-sm);
+  color: var(--wb-color-neutral-foreground-2);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.wb-condition-row {
+  display: flex;
+  align-items: center;
+  gap: var(--wb-spacing-md);
+  margin-bottom: var(--wb-spacing-sm);
+  padding-bottom: var(--wb-spacing-sm);
+  border-bottom: 1px dashed var(--wb-color-neutral-stroke-2);
+}
+
+.wb-condition-row:last-of-type {
+  border-bottom: none;
+  padding-bottom: 0;
+  margin-bottom: var(--wb-spacing-md);
+}
+
+.wb-or-divider {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: var(--wb-spacing-lg) 0;
+  font-weight: var(--wb-font-weight-bold);
+  color: var(--wb-color-neutral-foreground-3);
+  font-size: var(--wb-font-size-sm);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.wb-or-divider::before,
+.wb-or-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--wb-color-neutral-stroke-2);
+  margin: 0 var(--wb-spacing-md);
+}
+
+.wb-condition-value-wrap {
+  flex: 1;
+  min-width: 200px;
+}
+
+.wb-condition-children-label {
+  white-space: nowrap;
+  font-size: var(--wb-font-size-sm);
+}

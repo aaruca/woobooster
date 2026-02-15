@@ -221,16 +221,8 @@
   /* ── Init ──────────────────────────────────────────────────────────── */
 
   document.addEventListener('DOMContentLoaded', function () {
-    // Condition autocomplete.
-    initAutocomplete(
-      'wb-condition-value-display',
-      'wb-condition-value',
-      'wb-condition-dropdown',
-      function () {
-        var el = document.getElementById('wb-condition-attr');
-        return el ? el.value : '';
-      }
-    );
+    // Condition repeater.
+    initConditionRepeater();
 
     // Action autocomplete.
     initAutocomplete(
@@ -251,24 +243,211 @@
     initDeleteConfirm();
     initRuleTester();
     initCheckUpdate();
-    initChildCategoryToggle();
   });
 
-  /* ── Child Category Toggle ─────────────────────────────────────────── */
+  /* ── Condition Repeater ──────────────────────────────────────────── */
 
-  function initChildCategoryToggle() {
-    var condAttr = document.getElementById('wb-condition-attr');
-    var childField = document.getElementById('wb-include-children-field');
-    if (!condAttr || !childField) return;
+  function initConditionRepeater() {
+    var container = document.getElementById('wb-condition-groups');
+    var addGroupBtn = document.getElementById('wb-add-group');
+    if (!container) return;
 
-    // Hierarchical taxonomies that support child categories.
+    // Hierarchical taxonomies.
     var hierarchical = ['product_cat'];
 
-    function toggle() {
-      childField.style.display = hierarchical.indexOf(condAttr.value) !== -1 ? '' : 'none';
+    // Init existing rows.
+    container.querySelectorAll('.wb-condition-row').forEach(function (row) {
+      initRowAutocomplete(row);
+      initRowChildToggle(row);
+    });
+
+    // Wire up existing remove buttons.
+    container.addEventListener('click', function (e) {
+      if (e.target.classList.contains('wb-remove-condition')) {
+        e.target.closest('.wb-condition-row').remove();
+        renumberFields();
+      }
+      if (e.target.classList.contains('wb-remove-group')) {
+        var group = e.target.closest('.wb-condition-group');
+        var divider = group.previousElementSibling;
+        if (divider && divider.classList.contains('wb-or-divider')) divider.remove();
+        group.remove();
+        renumberFields();
+      }
+      if (e.target.classList.contains('wb-add-condition')) {
+        addConditionToGroup(e.target.closest('.wb-condition-group'));
+      }
+    });
+
+    // Add OR Group.
+    if (addGroupBtn) {
+      addGroupBtn.addEventListener('click', function () {
+        var groups = container.querySelectorAll('.wb-condition-group');
+        var newIdx = groups.length;
+
+        var divider = document.createElement('div');
+        divider.className = 'wb-or-divider';
+        divider.textContent = '— OR —';
+        container.appendChild(divider);
+
+        var group = createGroupEl(newIdx);
+        container.appendChild(group);
+      });
     }
-    condAttr.addEventListener('change', toggle);
-    toggle();
+
+    function createGroupEl(groupIdx) {
+      var group = document.createElement('div');
+      group.className = 'wb-condition-group';
+      group.dataset.group = groupIdx;
+
+      group.innerHTML = '<div class="wb-condition-group__header">' +
+        '<span class="wb-condition-group__label">Condition Group ' + (groupIdx + 1) + '</span>' +
+        '<button type="button" class="wb-btn wb-btn--danger wb-btn--xs wb-remove-group">&times;</button>' +
+        '</div>';
+
+      var row = createConditionRow(groupIdx, 0);
+      group.appendChild(row);
+
+      var addBtn = document.createElement('button');
+      addBtn.type = 'button';
+      addBtn.className = 'wb-btn wb-btn--subtle wb-btn--sm wb-add-condition';
+      addBtn.textContent = '+ AND Condition';
+      group.appendChild(addBtn);
+
+      return group;
+    }
+
+    function addConditionToGroup(group) {
+      var rows = group.querySelectorAll('.wb-condition-row');
+      var gIdx = parseInt(group.dataset.group, 10);
+      var cIdx = rows.length;
+
+      var row = createConditionRow(gIdx, cIdx);
+      var addBtn = group.querySelector('.wb-add-condition');
+      group.insertBefore(row, addBtn);
+    }
+
+    function createConditionRow(gIdx, cIdx) {
+      var prefix = 'conditions[' + gIdx + '][' + cIdx + ']';
+      var row = document.createElement('div');
+      row.className = 'wb-condition-row';
+      row.dataset.condition = cIdx;
+
+      // Build taxonomy options from existing select.
+      var existingSelect = container.querySelector('.wb-condition-attr');
+      var options = '<option value="">Attribute…</option>';
+      if (existingSelect) {
+        Array.prototype.slice.call(existingSelect.options).forEach(function (opt) {
+          if (opt.value) options += '<option value="' + opt.value + '">' + opt.textContent + '</option>';
+        });
+      }
+
+      row.innerHTML =
+        '<select name="' + prefix + '[attribute]" class="wb-select wb-condition-attr" required>' + options + '</select>' +
+        '<input type="hidden" name="' + prefix + '[operator]" value="equals">' +
+        '<div class="wb-autocomplete wb-condition-value-wrap">' +
+        '<input type="text" class="wb-input wb-autocomplete__input wb-condition-value-display" placeholder="Value…" autocomplete="off">' +
+        '<input type="hidden" name="' + prefix + '[value]" class="wb-condition-value-hidden">' +
+        '<div class="wb-autocomplete__dropdown"></div>' +
+        '</div>' +
+        '<label class="wb-checkbox wb-condition-children-label" style="display:none;">' +
+        '<input type="checkbox" name="' + prefix + '[include_children]" value="1"> + Children' +
+        '</label>' +
+        '<button type="button" class="wb-btn wb-btn--subtle wb-btn--xs wb-remove-condition">&times;</button>';
+
+      initRowAutocomplete(row);
+      initRowChildToggle(row);
+      return row;
+    }
+
+    function initRowAutocomplete(row) {
+      var display = row.querySelector('.wb-condition-value-display');
+      var hidden = row.querySelector('.wb-condition-value-hidden');
+      var dropdown = row.querySelector('.wb-autocomplete__dropdown');
+      var attrSelect = row.querySelector('.wb-condition-attr');
+      if (!display || !hidden || !dropdown || !attrSelect) return;
+
+      var debounce = null;
+
+      display.addEventListener('input', function () {
+        clearTimeout(debounce);
+        hidden.value = '';
+        debounce = setTimeout(function () { searchRowTerms(display, hidden, dropdown, attrSelect, display.value); }, 300);
+      });
+
+      display.addEventListener('focus', function () {
+        if (!dropdown.children.length) {
+          searchRowTerms(display, hidden, dropdown, attrSelect, '');
+        } else {
+          dropdown.style.display = 'block';
+        }
+      });
+
+      document.addEventListener('click', function (e) {
+        if (!dropdown.contains(e.target) && e.target !== display) {
+          dropdown.style.display = 'none';
+        }
+      });
+    }
+
+    function searchRowTerms(display, hidden, dropdown, attrSelect, search) {
+      var taxonomy = attrSelect.value;
+      if (!taxonomy) { dropdown.style.display = 'none'; return; }
+
+      var fd = new FormData();
+      fd.append('action', 'woobooster_search_terms');
+      fd.append('nonce', cfg.nonce);
+      fd.append('taxonomy', taxonomy);
+      fd.append('search', search);
+      fd.append('page', 1);
+
+      fetch(cfg.ajaxUrl, { method: 'POST', body: fd })
+        .then(function (r) { return r.json(); })
+        .then(function (res) {
+          if (!res.success) return;
+          dropdown.innerHTML = '';
+
+          res.data.terms.forEach(function (t) {
+            var item = document.createElement('div');
+            item.className = 'wb-autocomplete__item';
+            item.textContent = t.name + ' (' + t.count + ')';
+            item.addEventListener('click', function () {
+              display.value = t.name;
+              hidden.value = t.slug;
+              dropdown.style.display = 'none';
+            });
+            dropdown.appendChild(item);
+          });
+
+          dropdown.style.display = dropdown.children.length ? 'block' : 'none';
+        });
+    }
+
+    function initRowChildToggle(row) {
+      var attrSelect = row.querySelector('.wb-condition-attr');
+      var label = row.querySelector('.wb-condition-children-label');
+      if (!attrSelect || !label) return;
+
+      function toggle() {
+        label.style.display = hierarchical.indexOf(attrSelect.value) !== -1 ? '' : 'none';
+      }
+      attrSelect.addEventListener('change', toggle);
+      toggle();
+    }
+
+    function renumberFields() {
+      container.querySelectorAll('.wb-condition-group').forEach(function (group, gIdx) {
+        group.dataset.group = gIdx;
+        group.querySelectorAll('.wb-condition-row').forEach(function (row, cIdx) {
+          row.dataset.condition = cIdx;
+          var prefix = 'conditions[' + gIdx + '][' + cIdx + ']';
+          row.querySelectorAll('[name]').forEach(function (el) {
+            var name = el.getAttribute('name');
+            el.setAttribute('name', name.replace(/conditions\[\d+\]\[\d+\]/, prefix));
+          });
+        });
+      });
+    }
   }
 
   /* ── Check for Updates ──────────────────────────────────────────── */

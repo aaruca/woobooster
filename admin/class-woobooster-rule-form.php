@@ -35,9 +35,6 @@ class WooBooster_Rule_Form
         $name = $rule ? $rule->name : '';
         $priority = $rule ? $rule->priority : 10;
         $status = $rule ? $rule->status : 1;
-        $condition_attribute = $rule ? $rule->condition_attribute : '';
-        $condition_operator = $rule ? $rule->condition_operator : 'equals';
-        $condition_value = $rule ? $rule->condition_value : '';
         $action_source = $rule ? $rule->action_source : 'category';
         $action_value = $rule ? $rule->action_value : '';
         $action_orderby = $rule ? $rule->action_orderby : 'rand';
@@ -46,13 +43,20 @@ class WooBooster_Rule_Form
 
         $taxonomies = WooBooster_Rule::get_product_taxonomies();
 
-        // Get saved term label for display.
-        $condition_value_label = '';
-        if ($condition_value && $condition_attribute) {
-            $term = get_term_by('slug', $condition_value, $condition_attribute);
-            if ($term && !is_wp_error($term)) {
-                $condition_value_label = $term->name;
-            }
+        // Load condition groups from new conditions table.
+        $condition_groups = $rule_id ? WooBooster_Rule::get_conditions($rule_id) : array();
+        if (empty($condition_groups)) {
+            // Default: one group with one empty condition.
+            $condition_groups = array(
+                0 => array(
+                    (object) array(
+                        'condition_attribute' => '',
+                        'condition_operator' => 'equals',
+                        'condition_value' => '',
+                        'include_children' => 0,
+                    ),
+                ),
+            );
         }
 
         $action_value_label = '';
@@ -124,50 +128,95 @@ class WooBooster_Rule_Form
 
         echo '</div>'; // .wb-card__section
 
-        // ── Condition ───────────────────────────────────────────────────────
+        // ── Conditions ──────────────────────────────────────────────────────
 
-        echo '<div class="wb-card__section">';
-        echo '<h3>' . esc_html__('Condition', 'woobooster') . '</h3>';
-        echo '<p class="wb-section-desc">' . esc_html__('When a product matches this condition, the action below will be used to find recommendations.', 'woobooster') . '</p>';
+        echo '<div class="wb-card__section" id="wb-conditions-section">';
+        echo '<h3>' . esc_html__('Conditions', 'woobooster') . '</h3>';
+        echo '<p class="wb-section-desc">' . esc_html__('Groups are combined with OR. Conditions within a group are combined with AND.', 'woobooster') . '</p>';
 
-        // Attribute.
-        echo '<div class="wb-field">';
-        echo '<label class="wb-field__label" for="wb-condition-attr">' . esc_html__('Attribute', 'woobooster') . '</label>';
-        echo '<div class="wb-field__control">';
-        echo '<select id="wb-condition-attr" name="condition_attribute" class="wb-select" required>';
-        echo '<option value="">' . esc_html__('Select attribute…', 'woobooster') . '</option>';
-        foreach ($taxonomies as $tax_slug => $tax_label) {
-            echo '<option value="' . esc_attr($tax_slug) . '"' . selected($condition_attribute, $tax_slug, false) . '>';
-            echo esc_html($tax_label) . ' (' . esc_html($tax_slug) . ')';
-            echo '</option>';
+        echo '<div id="wb-condition-groups">';
+
+        $group_index = 0;
+        foreach ($condition_groups as $group_id => $conditions) {
+            if ($group_index > 0) {
+                echo '<div class="wb-or-divider">' . esc_html__('— OR —', 'woobooster') . '</div>';
+            }
+
+            echo '<div class="wb-condition-group" data-group="' . esc_attr($group_index) . '">';
+            echo '<div class="wb-condition-group__header">';
+            echo '<span class="wb-condition-group__label">' . esc_html__('Condition Group', 'woobooster') . ' ' . ($group_index + 1) . '</span>';
+            if ($group_index > 0) {
+                echo '<button type="button" class="wb-btn wb-btn--danger wb-btn--xs wb-remove-group" title="' . esc_attr__('Remove Group', 'woobooster') . '">&times;</button>';
+            }
+            echo '</div>';
+
+            $cond_index = 0;
+            foreach ($conditions as $cond) {
+                $c_attr = is_object($cond) ? $cond->condition_attribute : '';
+                $c_val = is_object($cond) ? $cond->condition_value : '';
+                $c_inc = is_object($cond) ? (int) $cond->include_children : 0;
+
+                // Resolve label for existing values.
+                $c_label = '';
+                if ($c_val && $c_attr) {
+                    $term = get_term_by('slug', $c_val, $c_attr);
+                    if ($term && !is_wp_error($term)) {
+                        $c_label = $term->name;
+                    }
+                }
+
+                $field_prefix = 'conditions[' . $group_index . '][' . $cond_index . ']';
+
+                echo '<div class="wb-condition-row" data-condition="' . esc_attr($cond_index) . '">';
+
+                // Attribute select.
+                echo '<select name="' . esc_attr($field_prefix . '[attribute]') . '" class="wb-select wb-condition-attr" required>';
+                echo '<option value="">' . esc_html__('Attribute…', 'woobooster') . '</option>';
+                foreach ($taxonomies as $tax_slug => $tax_label) {
+                    echo '<option value="' . esc_attr($tax_slug) . '"' . selected($c_attr, $tax_slug, false) . '>';
+                    echo esc_html($tax_label);
+                    echo '</option>';
+                }
+                echo '</select>';
+
+                // Hidden operator.
+                echo '<input type="hidden" name="' . esc_attr($field_prefix . '[operator]') . '" value="equals">';
+
+                // Value autocomplete.
+                echo '<div class="wb-autocomplete wb-condition-value-wrap">';
+                echo '<input type="text" class="wb-input wb-autocomplete__input wb-condition-value-display" placeholder="' . esc_attr__('Value…', 'woobooster') . '" value="' . esc_attr($c_label) . '" autocomplete="off">';
+                echo '<input type="hidden" name="' . esc_attr($field_prefix . '[value]') . '" class="wb-condition-value-hidden" value="' . esc_attr($c_val) . '">';
+                echo '<div class="wb-autocomplete__dropdown"></div>';
+                echo '</div>';
+
+                // Include children.
+                echo '<label class="wb-checkbox wb-condition-children-label" style="display:none;">';
+                echo '<input type="checkbox" name="' . esc_attr($field_prefix . '[include_children]') . '" value="1"' . checked($c_inc, 1, false) . '> ';
+                echo esc_html__('+ Children', 'woobooster');
+                echo '</label>';
+
+                // Remove button.
+                if ($cond_index > 0 || count($conditions) > 1) {
+                    echo '<button type="button" class="wb-btn wb-btn--subtle wb-btn--xs wb-remove-condition" title="' . esc_attr__('Remove', 'woobooster') . '">&times;</button>';
+                }
+
+                echo '</div>'; // .wb-condition-row
+                $cond_index++;
+            }
+
+            echo '<button type="button" class="wb-btn wb-btn--subtle wb-btn--sm wb-add-condition">';
+            echo '+ ' . esc_html__('AND Condition', 'woobooster');
+            echo '</button>';
+
+            echo '</div>'; // .wb-condition-group
+            $group_index++;
         }
-        echo '</select>';
-        echo '</div></div>';
 
-        // Operator — hardcoded to equals. Column kept in schema for future extensibility.
-        echo '<input type="hidden" name="condition_operator" value="equals">';
+        echo '</div>'; // #wb-condition-groups
 
-        // Value (AJAX autocomplete).
-        echo '<div class="wb-field">';
-        echo '<label class="wb-field__label" for="wb-condition-value">' . esc_html__('Value', 'woobooster') . '</label>';
-        echo '<div class="wb-field__control">';
-        echo '<div class="wb-autocomplete" id="wb-condition-autocomplete">';
-        echo '<input type="text" id="wb-condition-value-display" class="wb-input wb-autocomplete__input" placeholder="' . esc_attr__('Search terms…', 'woobooster') . '" value="' . esc_attr($condition_value_label) . '" autocomplete="off">';
-        echo '<input type="hidden" id="wb-condition-value" name="condition_value" value="' . esc_attr($condition_value) . '">';
-        echo '<div class="wb-autocomplete__dropdown" id="wb-condition-dropdown"></div>';
-        echo '</div></div></div>';
-
-        // Include Children (conditional — shown via JS only for hierarchical taxonomies).
-        $include_children = isset($rule->include_children) ? absint($rule->include_children) : 0;
-        echo '<div class="wb-field" id="wb-include-children-field" style="display:none;">';
-        echo '<label class="wb-field__label">' . esc_html__('Child Categories', 'woobooster') . '</label>';
-        echo '<div class="wb-field__control">';
-        echo '<label class="wb-checkbox">';
-        echo '<input type="checkbox" name="include_children" value="1"' . checked($include_children, 1, false) . '> ';
-        echo esc_html__('Apply this rule to all child (sub) categories as well', 'woobooster');
-        echo '</label>';
-        echo '<p class="wb-field__desc">' . esc_html__('When enabled, the rule will also match products in any descendant category.', 'woobooster') . '</p>';
-        echo '</div></div>';
+        echo '<button type="button" class="wb-btn wb-btn--subtle wb-btn--sm" id="wb-add-group">';
+        echo '+ ' . esc_html__('OR Group', 'woobooster');
+        echo '</button>';
 
         echo '</div>'; // .wb-card__section
 
@@ -272,25 +321,58 @@ class WooBooster_Rule_Form
 
         $rule_id = isset($_POST['rule_id']) ? absint($_POST['rule_id']) : 0;
 
+        // Build rule data (without inline condition fields).
         $data = array(
             'name' => isset($_POST['rule_name']) ? sanitize_text_field(wp_unslash($_POST['rule_name'])) : '',
             'priority' => isset($_POST['rule_priority']) ? absint($_POST['rule_priority']) : 10,
             'status' => isset($_POST['rule_status']) ? 1 : 0,
-            'condition_attribute' => isset($_POST['condition_attribute']) ? sanitize_key($_POST['condition_attribute']) : '',
-            'condition_operator' => isset($_POST['condition_operator']) ? sanitize_key($_POST['condition_operator']) : 'equals',
-            'condition_value' => isset($_POST['condition_value']) ? sanitize_text_field(wp_unslash($_POST['condition_value'])) : '',
             'action_source' => isset($_POST['action_source']) ? sanitize_key($_POST['action_source']) : 'category',
             'action_value' => isset($_POST['action_value']) ? sanitize_text_field(wp_unslash($_POST['action_value'])) : '',
             'action_orderby' => isset($_POST['action_orderby']) ? sanitize_key($_POST['action_orderby']) : 'rand',
             'action_limit' => isset($_POST['action_limit']) ? absint($_POST['action_limit']) : 4,
-            'include_children' => isset($_POST['include_children']) ? 1 : 0,
             'exclude_outofstock' => isset($_POST['exclude_outofstock']) ? 1 : 0,
         );
+
+        // Keep legacy inline fields populated from the first condition for backward compatibility.
+        $raw_conditions = isset($_POST['conditions']) && is_array($_POST['conditions']) ? $_POST['conditions'] : array(); // phpcs:ignore WordPress.Security.ValidatedSanitizedInput
+        $first_group = !empty($raw_conditions) ? reset($raw_conditions) : array();
+        $first_cond = !empty($first_group) ? reset($first_group) : array();
+        $data['condition_attribute'] = isset($first_cond['attribute']) ? sanitize_key($first_cond['attribute']) : '';
+        $data['condition_operator'] = 'equals';
+        $data['condition_value'] = isset($first_cond['value']) ? sanitize_text_field(wp_unslash($first_cond['value'])) : '';
+        $data['include_children'] = isset($first_cond['include_children']) ? 1 : 0;
 
         if ($rule_id) {
             WooBooster_Rule::update($rule_id, $data);
         } else {
             $rule_id = WooBooster_Rule::create($data);
+        }
+
+        // Save multi-condition groups.
+        $condition_groups = array();
+        foreach ($raw_conditions as $g_idx => $group) {
+            if (!is_array($group)) {
+                continue;
+            }
+            $group_conditions = array();
+            foreach ($group as $c_idx => $cond) {
+                if (!is_array($cond) || empty($cond['attribute'])) {
+                    continue;
+                }
+                $group_conditions[] = array(
+                    'condition_attribute' => sanitize_key($cond['attribute']),
+                    'condition_operator' => 'equals',
+                    'condition_value' => sanitize_text_field(wp_unslash($cond['value'] ?? '')),
+                    'include_children' => isset($cond['include_children']) ? 1 : 0,
+                );
+            }
+            if (!empty($group_conditions)) {
+                $condition_groups[absint($g_idx)] = $group_conditions;
+            }
+        }
+
+        if (!empty($condition_groups)) {
+            WooBooster_Rule::save_conditions($rule_id, $condition_groups);
         }
 
         wp_safe_redirect(admin_url('admin.php?page=woobooster-rules&action=edit&rule_id=' . $rule_id . '&saved=1'));

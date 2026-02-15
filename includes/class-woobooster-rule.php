@@ -29,6 +29,13 @@ class WooBooster_Rule
     private static $index_table;
 
     /**
+     * Conditions table name.
+     *
+     * @var string
+     */
+    private static $conditions_table;
+
+    /**
      * Initialize table names.
      */
     private static function init_tables()
@@ -36,6 +43,7 @@ class WooBooster_Rule
         global $wpdb;
         self::$table = $wpdb->prefix . 'woobooster_rules';
         self::$index_table = $wpdb->prefix . 'woobooster_rule_index';
+        self::$conditions_table = $wpdb->prefix . 'woobooster_rule_conditions';
     }
 
     /**
@@ -235,7 +243,97 @@ class WooBooster_Rule
     }
 
     /**
+     * Get all condition groups for a rule.
+     *
+     * @param int $rule_id Rule ID.
+     * @return array Grouped conditions: [ group_id => [ condition, ... ], ... ]
+     */
+    public static function get_conditions($rule_id)
+    {
+        global $wpdb;
+        self::init_tables();
+
+        $rows = $wpdb->get_results(
+            $wpdb->prepare(
+                "SELECT * FROM %i WHERE rule_id = %d ORDER BY group_id ASC, id ASC",
+                self::$conditions_table,
+                absint($rule_id)
+            )
+        );
+
+        // If no rows in the new table, fall back to the rule's inline fields.
+        if (empty($rows)) {
+            $rule = self::get($rule_id);
+            if ($rule && !empty($rule->condition_attribute)) {
+                return array(
+                    0 => array(
+                        (object) array(
+                            'id' => 0,
+                            'rule_id' => $rule_id,
+                            'group_id' => 0,
+                            'condition_attribute' => $rule->condition_attribute,
+                            'condition_operator' => $rule->condition_operator,
+                            'condition_value' => $rule->condition_value,
+                            'include_children' => $rule->include_children,
+                        ),
+                    ),
+                );
+            }
+            return array();
+        }
+
+        $groups = array();
+        foreach ($rows as $row) {
+            $groups[(int) $row->group_id][] = $row;
+        }
+
+        return $groups;
+    }
+
+    /**
+     * Save condition groups for a rule.
+     *
+     * @param int   $rule_id Rule ID.
+     * @param array $groups  Array of groups, each group is an array of conditions.
+     */
+    public static function save_conditions($rule_id, $groups)
+    {
+        global $wpdb;
+        self::init_tables();
+
+        $rule_id = absint($rule_id);
+
+        // Delete existing conditions.
+        $wpdb->delete(self::$conditions_table, array('rule_id' => $rule_id), array('%d'));
+
+        // Insert new conditions.
+        foreach ($groups as $group_id => $conditions) {
+            foreach ($conditions as $condition) {
+                $wpdb->insert(
+                    self::$conditions_table,
+                    array(
+                        'rule_id' => $rule_id,
+                        'group_id' => absint($group_id),
+                        'condition_attribute' => sanitize_key($condition['condition_attribute']),
+                        'condition_operator' => sanitize_key($condition['condition_operator'] ?? 'equals'),
+                        'condition_value' => sanitize_text_field($condition['condition_value']),
+                        'include_children' => absint($condition['include_children'] ?? 0),
+                    ),
+                    array('%d', '%d', '%s', '%s', '%s', '%d')
+                );
+            }
+        }
+
+        // Rebuild index.
+        self::rebuild_index_for_rule($rule_id);
+    }
+
+    /**
      * Rebuild the lookup index for a specific rule.
+     *
+     * Indexes ALL condition keys from ALL groups so the matcher
+     * can quickly find candidate rules. Multi-condition verification
+     * happens in the matcher after candidates are found.
      *
      * @param int $id Rule ID.
      */
@@ -257,28 +355,44 @@ class WooBooster_Rule
             return;
         }
 
-        // Collect all condition keys to index.
-        $condition_keys = array();
-        $condition_keys[] = sanitize_key($rule->condition_attribute) . ':' . sanitize_text_field($rule->condition_value);
+        // Get conditions from the new table.
+        $groups = self::get_conditions($id);
 
-        // If include_children is enabled and taxonomy is hierarchical, expand to all descendants.
-        if (!empty($rule->include_children) && taxonomy_exists($rule->condition_attribute) && is_taxonomy_hierarchical($rule->condition_attribute)) {
-            $parent_term = get_term_by('slug', $rule->condition_value, $rule->condition_attribute);
-            if ($parent_term && !is_wp_error($parent_term)) {
-                $child_ids = get_term_children($parent_term->term_id, $rule->condition_attribute);
-                if (!is_wp_error($child_ids)) {
-                    foreach ($child_ids as $child_id) {
-                        $child_term = get_term($child_id, $rule->condition_attribute);
-                        if ($child_term && !is_wp_error($child_term)) {
-                            $condition_keys[] = sanitize_key($rule->condition_attribute) . ':' . sanitize_text_field($child_term->slug);
+        if (empty($groups)) {
+            return;
+        }
+
+        // Collect all unique condition keys to index.
+        $condition_keys = array();
+
+        foreach ($groups as $conditions) {
+            foreach ($conditions as $cond) {
+                $attr = sanitize_key($cond->condition_attribute);
+                $val = sanitize_text_field($cond->condition_value);
+                $key = $attr . ':' . $val;
+                $condition_keys[$key] = true;
+
+                // Expand child categories if enabled.
+                if (!empty($cond->include_children) && taxonomy_exists($attr) && is_taxonomy_hierarchical($attr)) {
+                    $parent_term = get_term_by('slug', $val, $attr);
+                    if ($parent_term && !is_wp_error($parent_term)) {
+                        $child_ids = get_term_children($parent_term->term_id, $attr);
+                        if (!is_wp_error($child_ids)) {
+                            foreach ($child_ids as $child_id) {
+                                $child_term = get_term($child_id, $attr);
+                                if ($child_term && !is_wp_error($child_term)) {
+                                    $child_key = $attr . ':' . sanitize_text_field($child_term->slug);
+                                    $condition_keys[$child_key] = true;
+                                }
+                            }
                         }
                     }
                 }
             }
         }
 
-        // Insert one index entry per condition key.
-        foreach ($condition_keys as $condition_key) {
+        // Insert one index entry per unique condition key.
+        foreach (array_keys($condition_keys) as $condition_key) {
             $wpdb->insert(
                 self::$index_table,
                 array(

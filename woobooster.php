@@ -3,7 +3,7 @@
  * Plugin Name:       WooBooster
  * Plugin URI:        https://example.com/woobooster
  * Description:       A rule-based product recommendation engine for WooCommerce with full Bricks Builder Query Loop integration.
- * Version:           1.1.0
+ * Version:           1.2.0
  * Requires at least: 6.0
  * Requires PHP:      7.4
  * Author:            Ale Aruca, Muhammad Adeel
@@ -22,14 +22,14 @@ if (!defined('ABSPATH')) {
 }
 
 // Plugin constants
-define('WOOBOOSTER_VERSION', '1.1.0');
+define('WOOBOOSTER_VERSION', '1.2.0');
 define('WOOBOOSTER_FILE', __FILE__);
 define('WOOBOOSTER_PATH', plugin_dir_path(__FILE__));
 define('WOOBOOSTER_URL', plugin_dir_url(__FILE__));
 define('WOOBOOSTER_BASENAME', plugin_basename(__FILE__));
 
 // Database schema version — bump when schema changes.
-define('WOOBOOSTER_DB_VERSION', '1.1.0');
+define('WOOBOOSTER_DB_VERSION', '1.2.0');
 
 /**
  * Run any pending database upgrades.
@@ -52,6 +52,50 @@ function woobooster_maybe_upgrade_db()
         }
 
         update_option('woobooster_db_version', '1.1.0');
+    }
+
+    // 1.2.0: Add conditions table and migrate single-condition data.
+    if (version_compare($installed, '1.2.0', '<')) {
+        // Re-run create_tables to ensure conditions table exists.
+        require_once WOOBOOSTER_PATH . 'includes/class-woobooster-activator.php';
+        WooBooster_Activator::activate();
+
+        // Migrate existing rules that have condition_attribute set
+        // into the new conditions table (group_id = 0).
+        global $wpdb;
+        $rules_table = $wpdb->prefix . 'woobooster_rules';
+        $cond_table = $wpdb->prefix . 'woobooster_rule_conditions';
+
+        // Only migrate rules that have conditions and haven't been migrated yet.
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery
+        $existing = $wpdb->get_var("SELECT COUNT(*) FROM {$cond_table}");
+        if (0 === (int) $existing) {
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery
+            $rules = $wpdb->get_results(
+                "SELECT id, condition_attribute, condition_operator, condition_value, include_children
+                 FROM {$rules_table}
+                 WHERE condition_attribute != ''"
+            );
+
+            if ($rules) {
+                foreach ($rules as $r) {
+                    $wpdb->insert(
+                        $cond_table,
+                        array(
+                            'rule_id' => absint($r->id),
+                            'group_id' => 0,
+                            'condition_attribute' => sanitize_key($r->condition_attribute),
+                            'condition_operator' => sanitize_key($r->condition_operator),
+                            'condition_value' => sanitize_text_field($r->condition_value),
+                            'include_children' => absint($r->include_children),
+                        ),
+                        array('%d', '%d', '%s', '%s', '%s', '%d')
+                    );
+                }
+            }
+        }
+
+        update_option('woobooster_db_version', '1.2.0');
     }
 }
 add_action('plugins_loaded', 'woobooster_maybe_upgrade_db', 5);

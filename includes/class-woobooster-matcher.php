@@ -61,7 +61,7 @@ class WooBooster_Matcher
         }
 
         // Step 3: Find the winning rule via the lookup index.
-        $rule = $this->find_matching_rule($condition_keys);
+        $rule = $this->find_matching_rule($condition_keys, $terms);
 
         if (!$rule) {
             $this->debug_log("No matching rule for product {$product_id}");
@@ -94,7 +94,7 @@ class WooBooster_Matcher
 
         $results = $wpdb->get_results(
             $wpdb->prepare(
-                "SELECT tt.taxonomy, t.slug
+                "SELECT tt.taxonomy, t.slug, t.term_id
 				FROM {$wpdb->term_relationships} tr
 				JOIN {$wpdb->term_taxonomy} tt ON tr.term_taxonomy_id = tt.term_taxonomy_id
 				JOIN {$wpdb->terms} t ON tt.term_id = t.term_id
@@ -110,14 +110,14 @@ class WooBooster_Matcher
     /**
      * Find the matching rule from the lookup index.
      *
-     * Uses the fast index table for equals-only matching.
-     * The condition_operator column exists in the schema for future extensibility
-     * but is always 'equals' in this version.
+     * Uses the fast index table to find candidate rules, then verifies
+     * multi-condition groups (AND within group, OR between groups).
      *
      * @param array $condition_keys Composite keys (e.g. ['pa_brand:glock', 'pa_caliber:9mm']).
+     * @param array $terms          Full term data [['taxonomy' => '...', 'slug' => '...', 'term_id' => ...]].
      * @return object|null The winning rule or null.
      */
-    private function find_matching_rule($condition_keys)
+    private function find_matching_rule($condition_keys, $terms)
     {
         global $wpdb;
 
@@ -134,27 +134,93 @@ class WooBooster_Matcher
         // Build the IN clause safely.
         $placeholders = implode(', ', array_fill(0, count($condition_keys), '%s'));
 
+        // Get ALL candidate rule IDs (distinct, ordered by priority).
         // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
-        $rule_id = $wpdb->get_var(
+        $candidate_ids = $wpdb->get_col(
             $wpdb->prepare(
-                "SELECT rule_id FROM {$index_table}
-				WHERE condition_key IN ({$placeholders})
-				ORDER BY priority ASC
-				LIMIT 1",
+                "SELECT DISTINCT rule_id FROM {$index_table}
+                WHERE condition_key IN ({$placeholders})
+                ORDER BY priority ASC",
                 ...$condition_keys
             )
         );
 
-        if (!$rule_id) {
+        if (empty($candidate_ids)) {
             return null;
         }
 
-        return $wpdb->get_row(
-            $wpdb->prepare(
-                "SELECT * FROM {$rules_table} WHERE id = %d AND status = 1",
-                absint($rule_id)
-            )
-        );
+        // Build a set of product keys for fast lookup.
+        $product_keys_set = array_flip($condition_keys);
+
+        // Verify each candidate rule against the product's condition keys.
+        foreach ($candidate_ids as $rule_id) {
+            $rule = $wpdb->get_row(
+                $wpdb->prepare(
+                    "SELECT * FROM {$rules_table} WHERE id = %d AND status = 1",
+                    absint($rule_id)
+                )
+            );
+
+            if (!$rule) {
+                continue;
+            }
+
+            // Get condition groups for this rule.
+            $groups = WooBooster_Rule::get_conditions($rule_id);
+
+            if (empty($groups)) {
+                continue;
+            }
+
+            // Check if ANY group is fully satisfied (OR between groups).
+            foreach ($groups as $conditions) {
+                $group_satisfied = true;
+
+                // ALL conditions in this group must match (AND within group).
+                foreach ($conditions as $cond) {
+                    $cond_key = sanitize_key($cond->condition_attribute) . ':' . sanitize_text_field($cond->condition_value);
+
+                    // Direct key match.
+                    if (isset($product_keys_set[$cond_key])) {
+                        continue; // This condition is satisfied.
+                    }
+
+                    // If include_children is enabled, check if any product term
+                    // is a descendant of this condition's term.
+                    if (!empty($cond->include_children)) {
+                        $found_child = false;
+                        $attr = sanitize_key($cond->condition_attribute);
+                        $parent_term = get_term_by('slug', $cond->condition_value, $attr);
+
+                        if ($parent_term && !is_wp_error($parent_term)) {
+                            foreach ($terms as $term) {
+                                if (
+                                    $term['taxonomy'] === $attr &&
+                                    term_is_ancestor_of((int) $parent_term->term_id, (int) $term['term_id'], $attr)
+                                ) {
+                                    $found_child = true;
+                                    break;
+                                }
+                            }
+                        }
+
+                        if ($found_child) {
+                            continue; // This condition is satisfied via child match.
+                        }
+                    }
+
+                    // This condition is NOT satisfied.
+                    $group_satisfied = false;
+                    break;
+                }
+
+                if ($group_satisfied) {
+                    return $rule; // This rule matches!
+                }
+            }
+        }
+
+        return null;
     }
 
     /**
@@ -356,7 +422,7 @@ class WooBooster_Matcher
         $result['keys'] = $condition_keys;
 
         // Step 3: Find rule.
-        $rule = $this->find_matching_rule($condition_keys);
+        $rule = $this->find_matching_rule($condition_keys, $terms);
 
         if ($rule) {
             $result['matched_rule'] = array(
