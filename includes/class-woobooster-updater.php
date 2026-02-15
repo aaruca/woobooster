@@ -95,6 +95,111 @@ class WooBooster_Updater
         add_filter('pre_set_site_transient_update_plugins', array($this, 'check_update'));
         add_filter('plugins_api', array($this, 'plugin_info'), 10, 3);
         add_filter('upgrader_post_install', array($this, 'post_install'), 10, 3);
+
+        // Add "Check for updates" link on the Plugins list page.
+        add_filter('plugin_action_links_' . $this->plugin_basename, array($this, 'add_check_update_link'));
+
+        // Show inline update notice row if update available.
+        add_action('after_plugin_row_' . $this->plugin_basename, array($this, 'show_update_notice'), 10, 2);
+
+        // Admin notice when GitHub API fails due to missing token.
+        add_action('admin_notices', array($this, 'maybe_show_token_notice'));
+
+        // Handle force-check request from plugins page link.
+        add_action('admin_init', array($this, 'handle_force_check'));
+    }
+
+    /**
+     * Add "Check for updates" action link to plugins list.
+     *
+     * @param array $links Existing action links.
+     * @return array Modified links.
+     */
+    public function add_check_update_link($links)
+    {
+        $check_url = wp_nonce_url(
+            admin_url('plugins.php?woobooster_force_check=1'),
+            'woobooster_force_check'
+        );
+        $links['check_update'] = '<a href="' . esc_url($check_url) . '">' . esc_html__('Check for updates', 'woobooster') . '</a>';
+        return $links;
+    }
+
+    /**
+     * Handle force-check request from the plugins page link.
+     * Called early via admin_init.
+     */
+    public function handle_force_check()
+    {
+        if (empty($_GET['woobooster_force_check'])) {
+            return;
+        }
+
+        check_admin_referer('woobooster_force_check');
+
+        if (!current_user_can('update_plugins')) {
+            return;
+        }
+
+        $this->force_check();
+
+        // Redirect back to plugins page with result message.
+        $update_transient = get_site_transient('update_plugins');
+        $has_update = isset($update_transient->response[$this->plugin_basename]);
+
+        wp_safe_redirect(add_query_arg(
+            'woobooster_checked',
+            $has_update ? 'update_available' : 'up_to_date',
+            admin_url('plugins.php')
+        ));
+        exit;
+    }
+
+    /**
+     * Force a fresh update check — clears all caches.
+     */
+    public function force_check()
+    {
+        $this->github_response = null;
+        delete_transient('woobooster_github_release');
+        delete_transient('woobooster_github_api_error');
+        delete_site_transient('update_plugins');
+        wp_update_plugins();
+    }
+
+    /**
+     * Show inline update notice below the plugin row.
+     *
+     * @param string $file   Plugin basename.
+     * @param array  $plugin Plugin data.
+     */
+    public function show_update_notice($file, $plugin)
+    {
+        // Show feedback message after force-check.
+        if (!empty($_GET['woobooster_checked'])) {
+            $msg = ('update_available' === $_GET['woobooster_checked'])
+                ? __('Update found! Click "update now" above.', 'woobooster')
+                : sprintf(__('You are running the latest version (v%s).', 'woobooster'), $this->current_version);
+
+            echo '<tr class="plugin-update-tr"><td colspan="4" class="plugin-update colspanchange">';
+            echo '<div class="notice inline notice-info"><p>' . esc_html($msg) . '</p></div>';
+            echo '</td></tr>';
+        }
+    }
+
+    /**
+     * Show admin notice if GitHub API failed due to missing auth token.
+     */
+    public function maybe_show_token_notice()
+    {
+        $error = get_transient('woobooster_github_api_error');
+        if (!$error || !current_user_can('manage_options')) {
+            return;
+        }
+
+        echo '<div class="notice notice-warning is-dismissible">';
+        echo '<p><strong>WooBooster:</strong> ' . esc_html($error) . '</p>';
+        echo '</div>';
     }
 
     /**
@@ -139,9 +244,35 @@ class WooBooster_Updater
             'timeout' => 10,
         ));
 
-        if (is_wp_error($response) || 200 !== wp_remote_retrieve_response_code($response)) {
+        if (is_wp_error($response)) {
+            set_transient('woobooster_github_api_error', __('Could not connect to GitHub. Check your server\'s outbound connectivity.', 'woobooster'), HOUR_IN_SECONDS);
             return null;
         }
+
+        $status_code = wp_remote_retrieve_response_code($response);
+
+        if (200 !== $status_code) {
+            // Detect private repo without token.
+            if (404 === $status_code && (!defined('WOOBOOSTER_GITHUB_TOKEN') || !WOOBOOSTER_GITHUB_TOKEN)) {
+                set_transient(
+                    'woobooster_github_api_error',
+                    sprintf(
+                        /* translators: %s: constant name */
+                        __('Auto-updates disabled — the GitHub repo is private. Add %s to wp-config.php with a valid Personal Access Token.', 'woobooster'),
+                        'WOOBOOSTER_GITHUB_TOKEN'
+                    ),
+                    DAY_IN_SECONDS
+                );
+            } elseif (403 === $status_code) {
+                set_transient('woobooster_github_api_error', __('GitHub API rate limit exceeded. Updates will retry in 1 hour.', 'woobooster'), HOUR_IN_SECONDS);
+            } elseif (401 === $status_code) {
+                set_transient('woobooster_github_api_error', __('GitHub token is invalid or expired. Please update WOOBOOSTER_GITHUB_TOKEN in wp-config.php.', 'woobooster'), DAY_IN_SECONDS);
+            }
+            return null;
+        }
+
+        // Clear any previous error on success.
+        delete_transient('woobooster_github_api_error');
 
         $body = json_decode(wp_remote_retrieve_body($response));
 
