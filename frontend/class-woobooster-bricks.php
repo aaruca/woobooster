@@ -34,9 +34,16 @@ class WooBooster_Bricks
      */
     public function init()
     {
-        // NOTE: bricks/setup/control_options is registered at file-load time
-        // in woobooster.php (Phase 1). This init() only adds runtime hooks that
-        // fire during page rendering, not during Bricks' UI setup.
+        // NOTE: bricks/setup/control_options is registered at file-load time.
+
+        // Register controls on common elements (Container, Block, Div) so they appear
+        // in a dedicated group outside the Query Loop tab.
+        $elements = array('container', 'block', 'div');
+        foreach ($elements as $element) {
+            add_filter("bricks/elements/{$element}/controls", array($this, 'add_element_controls'), 20);
+        }
+
+        // Query Execution Hooks
         add_filter('bricks/query/run', array($this, 'run_query'), 10, 2);
         add_filter('bricks/query/loop_object', array($this, 'set_loop_object'), 10, 3);
         add_filter('bricks/query/loop_object_id', array($this, 'set_loop_object_id'), 10, 3);
@@ -56,16 +63,31 @@ class WooBooster_Bricks
     }
 
     /**
-     * Step 2: Register query controls visible in Bricks Query panel.
+     * Step 2: Register separate settings group for WooBooster.
+     *
+     * Injected into Container/Block/Div elements so controls are visible
+     * outside the potentially buggy Query loop inner accordion.
      *
      * @param array $controls Existing controls.
      * @return array
      */
-    public function register_query_controls($controls)
+    public function add_element_controls($controls)
     {
+        // 1. Create a new Control Group "WooBooster".
+        // It will sit below the standard "Content" controls.
+        $controls['woobooster_settings_group'] = array(
+            'tab' => 'content',
+            'type' => 'group',
+            'label' => esc_html__('WooBooster Settings', 'woobooster'),
+            'required' => array('query.objectType', '=', self::QUERY_TYPE), // Only show if our query type is active.
+        );
+
+        // 2. Add controls to this group.
+
         // Product Source.
         $controls['woobooster_source'] = array(
             'tab' => 'content',
+            'group' => 'woobooster_settings_group',
             'label' => esc_html__('Product Source', 'woobooster'),
             'type' => 'select',
             'options' => array(
@@ -74,52 +96,52 @@ class WooBooster_Bricks
                 'cart' => esc_html__('Last Added to Cart', 'woobooster'),
             ),
             'default' => 'current',
-            'required' => array('query.objectType', '=', self::QUERY_TYPE),
         );
 
         // Manual Product ID.
         $controls['woobooster_product_id'] = array(
             'tab' => 'content',
+            'group' => 'woobooster_settings_group',
             'label' => esc_html__('Product ID', 'woobooster'),
             'type' => 'number',
             'required' => array(
                 array('query.objectType', '=', self::QUERY_TYPE),
-                array('query.woobooster_source', '=', 'manual'),
+                array('woobooster_source', '=', 'manual'), // Note: removed 'query.' prefix as it's now a sibling control? No, local check.
             ),
         );
 
         // Override Limit.
         $controls['woobooster_limit'] = array(
             'tab' => 'content',
-            'label' => esc_html__('Max Products (override rule limit)', 'woobooster'),
+            'group' => 'woobooster_settings_group',
+            'label' => esc_html__('Max Products (override)', 'woobooster'),
             'type' => 'number',
             'default' => '',
             'placeholder' => esc_html__('Use rule default', 'woobooster'),
-            'required' => array('query.objectType', '=', self::QUERY_TYPE),
         );
 
         // Exclude Out of Stock.
         $controls['woobooster_exclude_outofstock'] = array(
             'tab' => 'content',
+            'group' => 'woobooster_settings_group',
             'label' => esc_html__('Exclude Out of Stock', 'woobooster'),
             'type' => 'checkbox',
             'default' => true,
-            'required' => array('query.objectType', '=', self::QUERY_TYPE),
         );
 
         // Fallback.
         $controls['woobooster_fallback'] = array(
             'tab' => 'content',
+            'group' => 'woobooster_settings_group',
             'label' => esc_html__('Fallback if No Match', 'woobooster'),
             'type' => 'select',
             'options' => array(
                 'none' => esc_html__('Show Nothing', 'woobooster'),
-                'woo_related' => esc_html__('WooCommerce Related Products', 'woobooster'),
+                'woo_related' => esc_html__('WooCommerce Related', 'woobooster'),
                 'recent' => esc_html__('Recent Products', 'woobooster'),
                 'bestselling' => esc_html__('Bestselling Products', 'woobooster'),
             ),
             'default' => 'woo_related',
-            'required' => array('query.objectType', '=', self::QUERY_TYPE),
         );
 
         return $controls;
