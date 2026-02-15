@@ -155,7 +155,7 @@ class WooBooster_Rule_Form
         echo '<input type="text" id="wb-condition-value-display" class="wb-input wb-autocomplete__input" placeholder="' . esc_attr__('Search terms…', 'woobooster') . '" value="' . esc_attr($condition_value_label) . '" autocomplete="off">';
         echo '<input type="hidden" id="wb-condition-value" name="condition_value" value="' . esc_attr($condition_value) . '">';
         echo '<div class="wb-autocomplete__dropdown" id="wb-condition-dropdown"></div>';
-        echo '</div></div>';
+        echo '</div></div></div>';
 
         // Include Children (conditional — shown via JS only for hierarchical taxonomies).
         $include_children = isset($rule->include_children) ? absint($rule->include_children) : 0;
