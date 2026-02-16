@@ -3,7 +3,7 @@
  * Plugin Name:       WooBooster
  * Plugin URI:        https://woobooster.com
  * Description:       A rule-based product recommendation engine for WooCommerce with native Bricks Builder integration.
- * Version:           1.3.6
+ * Version:           1.3.7
  * Requires at least: 6.0
  * Requires PHP:      7.4
  * Author:            Alejandro Ruca
@@ -19,7 +19,7 @@ if (!defined('ABSPATH')) {
 }
 
 // Define plugin constants.
-define('WOOBOOSTER_VERSION', '1.3.6');
+define('WOOBOOSTER_VERSION', '1.3.7');
 define('WOOBOOSTER_DB_VERSION', '1.3.0');
 define('WOOBOOSTER_FILE', __FILE__);
 define('WOOBOOSTER_PATH', plugin_dir_path(__FILE__));
