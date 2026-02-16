@@ -156,7 +156,7 @@
 
 .wb-content {
   flex: 1;
-  padding: var(--wb-spacing-xl) var(--wb-spacing-xxl);
+  padding: var(--wb-spacing-xl);
   max-width: 1200px;
   margin: 0 auto;
 }

@@ -241,10 +241,10 @@ class WooBooster_Admin
         );
 
         $this->render_text_field(
-            __('Section Title', 'woobooster'),
+            __('Frontend Section Title', 'woobooster'),
             'woobooster_section_title',
             isset($options['section_title']) ? $options['section_title'] : __('You May Also Like', 'woobooster'),
-            __('Heading displayed above the recommended products.', 'woobooster')
+            __('The heading displayed above the recommended products on the product page.', 'woobooster')
         );
 
         $this->render_select_field(
@@ -302,7 +302,8 @@ class WooBooster_Admin
             </div>
             <div class="wb-card__body">
                 <p><?php esc_html_e('Current version:', 'woobooster'); ?>
-                    <strong>v<?php echo esc_html(WOOBOOSTER_VERSION); ?></strong></p>
+                    <strong>v<?php echo esc_html(WOOBOOSTER_VERSION); ?></strong>
+                </p>
                 <p class="wb-field__desc">
                     <?php esc_html_e('Click below to check GitHub for new releases. WordPress checks automatically every 12 hours.', 'woobooster'); ?>
                 </p>
