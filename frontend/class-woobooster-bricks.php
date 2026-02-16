@@ -2,17 +2,8 @@
 /**
  * WooBooster Bricks Builder Integration.
  *
- * Registers a custom Query Loop type "WooBooster Recommendations" in Bricks Builder.
- * This is the PRIMARY rendering method. It allows full Bricks-native layout control
- * with zero hardcoded HTML output from the plugin.
- *
- * CRITICAL: Implements all 5 Bricks query hooks:
- * 1. bricks/setup/control_options — register query type
- * 2. bricks/query/controls — add query controls
- * 3. bricks/query/run — execute the recommendation query
- * 4. bricks/query/loop_object — set post/product globals per iteration
- * 5. bricks/query/loop_object_id — map loop object to post ID
- * Plus: bricks/query/after_loop — reset post data
+ * Registers the "WooBooster Recommendations" custom Query Loop type in Bricks Builder.
+ * Handles query execution, loop context setup, and editor control registration.
  *
  * @package WooBooster
  */

@@ -2,21 +2,9 @@
 /**
  * WooBooster GitHub Updater.
  *
- * Checks GitHub Releases for new versions and enables one-click updates
- * from the WordPress admin Plugins page — just like plugins from wordpress.org.
- *
- * How it works:
- * 1. On the update check transient, queries the GitHub API for the latest release tag.
- * 2. Compares the tag (e.g. "1.0.1") against WOOBOOSTER_VERSION.
- * 3. If newer, injects the update info into WordPress's update transient.
- * 4. WordPress handles the download + install from the release .zip asset.
- *
- * Release workflow:
- * 1. Update WOOBOOSTER_VERSION in woobooster.php
- * 2. Commit + push to main
- * 3. Create a GitHub Release with tag matching the version (e.g. "1.0.1")
- * 4. Attach a .zip of the plugin folder as a release asset (or let GitHub auto-zip)
- * 5. WordPress sites will detect and offer the update automatically
+ * Handles plugin updates via GitHub Releases, allowing for auto-updates
+ * similar to WordPress.org plugins. Checks the GitHub API for new tags
+ * and injects update information into WordPress's transient.
  *
  * @package WooBooster
  */

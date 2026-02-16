@@ -214,24 +214,16 @@ class WooBooster_Admin
     /**
      * Render the Settings page.
      */
+    /**
+     * Render the Settings page.
+     */
     private function render_settings_page()
     {
         $options = get_option('woobooster_settings', array());
 
-        $enabled = isset($options['enabled']) ? $options['enabled'] : '1';
-        $section_title = isset($options['section_title']) ? $options['section_title'] : __('You May Also Like', 'woobooster');
-        $render_method = isset($options['render_method']) ? $options['render_method'] : 'bricks';
-        $exclude_outofstock = isset($options['exclude_outofstock']) ? $options['exclude_outofstock'] : '1';
-        $debug_mode = isset($options['debug_mode']) ? $options['debug_mode'] : '0';
-        $delete_data = isset($options['delete_data_uninstall']) ? $options['delete_data_uninstall'] : '0';
-
         // Show save notice.
-        // phpcs:ignore WordPress.Security.NonceVerification.Recommended
         if (isset($_GET['settings-updated']) && 'true' === $_GET['settings-updated']) {
-            echo '<div class="wb-message wb-message--success">';
-            echo WooBooster_Icons::get('check'); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
-            echo '<span>' . esc_html__('Settings saved.', 'woobooster') . '</span>';
-            echo '</div>';
+            $this->render_notice('success', __('Settings saved.', 'woobooster'));
         }
 
         echo '<form method="post" action="">';
@@ -241,71 +233,53 @@ class WooBooster_Admin
         echo '<div class="wb-card__header"><h2>' . esc_html__('General Settings', 'woobooster') . '</h2></div>';
         echo '<div class="wb-card__body">';
 
-        // Enable/Disable.
-        echo '<div class="wb-field">';
-        echo '<label class="wb-field__label">' . esc_html__('Enable Recommendations', 'woobooster') . '</label>';
-        echo '<div class="wb-field__control">';
-        echo '<label class="wb-toggle">';
-        echo '<input type="checkbox" name="woobooster_enabled" value="1"' . checked($enabled, '1', false) . '>';
-        echo '<span class="wb-toggle__slider"></span>';
-        echo '</label>';
-        echo '<p class="wb-field__desc">' . esc_html__('Enable or disable the entire recommendation system.', 'woobooster') . '</p>';
-        echo '</div></div>';
+        $this->render_toggle_field(
+            __('Enable Recommendations', 'woobooster'),
+            'woobooster_enabled',
+            isset($options['enabled']) ? $options['enabled'] : '1',
+            __('Enable or disable the entire recommendation system.', 'woobooster')
+        );
 
-        // Section Title.
-        echo '<div class="wb-field">';
-        echo '<label class="wb-field__label" for="wb-section-title">' . esc_html__('Section Title', 'woobooster') . '</label>';
-        echo '<div class="wb-field__control">';
-        echo '<input type="text" id="wb-section-title" name="woobooster_section_title" value="' . esc_attr($section_title) . '" class="wb-input">';
-        echo '<p class="wb-field__desc">' . esc_html__('Heading displayed above the recommended products.', 'woobooster') . '</p>';
-        echo '</div></div>';
+        $this->render_text_field(
+            __('Section Title', 'woobooster'),
+            'woobooster_section_title',
+            isset($options['section_title']) ? $options['section_title'] : __('You May Also Like', 'woobooster'),
+            __('Heading displayed above the recommended products.', 'woobooster')
+        );
 
-        // Render Method.
-        echo '<div class="wb-field">';
-        echo '<label class="wb-field__label" for="wb-render-method">' . esc_html__('Rendering Method', 'woobooster') . '</label>';
-        echo '<div class="wb-field__control">';
-        echo '<select id="wb-render-method" name="woobooster_render_method" class="wb-select">';
-        echo '<option value="bricks"' . selected($render_method, 'bricks', false) . '>' . esc_html__('Bricks Query Loop (recommended)', 'woobooster') . '</option>';
-        echo '<option value="woo_hook"' . selected($render_method, 'woo_hook', false) . '>' . esc_html__('WooCommerce Hook (fallback)', 'woobooster') . '</option>';
-        echo '</select>';
-        echo '<p class="wb-field__desc">' . esc_html__('Choose how recommendations are rendered on the frontend.', 'woobooster') . '</p>';
-        echo '</div></div>';
+        $this->render_select_field(
+            __('Rendering Method', 'woobooster'),
+            'woobooster_render_method',
+            isset($options['render_method']) ? $options['render_method'] : 'bricks',
+            array(
+                'bricks' => __('Bricks Query Loop (recommended)', 'woobooster'),
+                'woo_hook' => __('WooCommerce Hook (fallback)', 'woobooster'),
+            ),
+            __('Choose how recommendations are rendered on the frontend.', 'woobooster')
+        );
 
-        // Exclude Out of Stock.
-        echo '<div class="wb-field">';
-        echo '<label class="wb-field__label">' . esc_html__('Exclude Out of Stock', 'woobooster') . '</label>';
-        echo '<div class="wb-field__control">';
-        echo '<label class="wb-toggle">';
-        echo '<input type="checkbox" name="woobooster_exclude_outofstock" value="1"' . checked($exclude_outofstock, '1', false) . '>';
-        echo '<span class="wb-toggle__slider"></span>';
-        echo '</label>';
-        echo '<p class="wb-field__desc">' . esc_html__('Globally exclude out-of-stock products from recommendations.', 'woobooster') . '</p>';
-        echo '</div></div>';
+        $this->render_toggle_field(
+            __('Exclude Out of Stock', 'woobooster'),
+            'woobooster_exclude_outofstock',
+            isset($options['exclude_outofstock']) ? $options['exclude_outofstock'] : '1',
+            __('Globally exclude out-of-stock products from recommendations.', 'woobooster')
+        );
 
-        // Debug Mode.
-        echo '<div class="wb-field">';
-        echo '<label class="wb-field__label">' . esc_html__('Debug Mode', 'woobooster') . '</label>';
-        echo '<div class="wb-field__control">';
-        echo '<label class="wb-toggle">';
-        echo '<input type="checkbox" name="woobooster_debug_mode" value="1"' . checked($debug_mode, '1', false) . '>';
-        echo '<span class="wb-toggle__slider"></span>';
-        echo '</label>';
-        echo '<p class="wb-field__desc">' . esc_html__('Log rule matching details to WooCommerce → Status → Logs.', 'woobooster') . '</p>';
-        echo '</div></div>';
+        $this->render_toggle_field(
+            __('Debug Mode', 'woobooster'),
+            'woobooster_debug_mode',
+            isset($options['debug_mode']) ? $options['debug_mode'] : '0',
+            __('Log rule matching details to WooCommerce → Status → Logs.', 'woobooster')
+        );
 
-        // Delete on Uninstall.
-        echo '<div class="wb-field">';
-        echo '<label class="wb-field__label">' . esc_html__('Delete Data on Uninstall', 'woobooster') . '</label>';
-        echo '<div class="wb-field__control">';
-        echo '<label class="wb-toggle">';
-        echo '<input type="checkbox" name="woobooster_delete_data" value="1"' . checked($delete_data, '1', false) . '>';
-        echo '<span class="wb-toggle__slider"></span>';
-        echo '</label>';
-        echo '<p class="wb-field__desc">' . esc_html__('Remove all WooBooster data (rules, settings) when the plugin is uninstalled.', 'woobooster') . '</p>';
-        echo '</div></div>';
+        $this->render_toggle_field(
+            __('Delete Data on Uninstall', 'woobooster'),
+            'woobooster_delete_data',
+            isset($options['delete_data_uninstall']) ? $options['delete_data_uninstall'] : '0',
+            __('Remove all WooBooster data (rules, settings) when the plugin is uninstalled.', 'woobooster')
+        );
 
-        echo '</div>'; // .wb-card__body
-        echo '</div>'; // .wb-card
+        echo '</div></div>';
 
         echo '<div class="wb-actions-bar">';
         echo '<button type="submit" class="wb-btn wb-btn--primary">' . esc_html__('Save Settings', 'woobooster') . '</button>';
@@ -313,19 +287,104 @@ class WooBooster_Admin
 
         echo '</form>';
 
-        // Check for Updates card.
-        echo '<div class="wb-card" style="margin-top:24px;">';
-        echo '<div class="wb-card__header"><h2>' . esc_html__('Plugin Updates', 'woobooster') . '</h2></div>';
-        echo '<div class="wb-card__body">';
-        echo '<p>' . esc_html__('Current version:', 'woobooster') . ' <strong>v' . esc_html(WOOBOOSTER_VERSION) . '</strong></p>';
-        echo '<p class="wb-field__desc">' . esc_html__('Click below to check GitHub for new releases. WordPress checks automatically every 12 hours.', 'woobooster') . '</p>';
-        echo '<div style="margin-top:12px;">';
-        echo '<button type="button" id="wb-check-update" class="wb-btn wb-btn--secondary">';
-        echo esc_html__('Check for Updates Now', 'woobooster');
-        echo '</button>';
-        echo '<span id="wb-update-result" style="margin-left:12px;"></span>';
+        $this->render_updates_section();
+    }
+
+    /**
+     * Render the updates section card.
+     */
+    private function render_updates_section()
+    {
+        ?>
+        <div class="wb-card" style="margin-top:24px;">
+            <div class="wb-card__header">
+                <h2><?php esc_html_e('Plugin Updates', 'woobooster'); ?></h2>
+            </div>
+            <div class="wb-card__body">
+                <p><?php esc_html_e('Current version:', 'woobooster'); ?>
+                    <strong>v<?php echo esc_html(WOOBOOSTER_VERSION); ?></strong></p>
+                <p class="wb-field__desc">
+                    <?php esc_html_e('Click below to check GitHub for new releases. WordPress checks automatically every 12 hours.', 'woobooster'); ?>
+                </p>
+                <div style="margin-top:12px;">
+                    <button type="button" id="wb-check-update" class="wb-btn wb-btn--secondary">
+                        <?php esc_html_e('Check for Updates Now', 'woobooster'); ?>
+                    </button>
+                    <span id="wb-update-result" style="margin-left:12px;"></span>
+                </div>
+            </div>
+        </div>
+        <?php
+    }
+
+    /**
+     * Render a standard text field.
+     */
+    private function render_text_field($label, $name, $value, $desc)
+    {
+        ?>
+        <div class="wb-field">
+            <label class="wb-field__label" for="<?php echo esc_attr($name); ?>"><?php echo esc_html($label); ?></label>
+            <div class="wb-field__control">
+                <input type="text" id="<?php echo esc_attr($name); ?>" name="<?php echo esc_attr($name); ?>"
+                    value="<?php echo esc_attr($value); ?>" class="wb-input">
+                <p class="wb-field__desc"><?php echo esc_html($desc); ?></p>
+            </div>
+        </div>
+        <?php
+    }
+
+    /**
+     * Render a toggle switch field.
+     */
+    private function render_toggle_field($label, $name, $value, $desc)
+    {
+        ?>
+        <div class="wb-field">
+            <label class="wb-field__label"><?php echo esc_html($label); ?></label>
+            <div class="wb-field__control">
+                <label class="wb-toggle">
+                    <input type="checkbox" name="<?php echo esc_attr($name); ?>" value="1" <?php checked($value, '1'); ?>>
+                    <span class="wb-toggle__slider"></span>
+                </label>
+                <p class="wb-field__desc"><?php echo esc_html($desc); ?></p>
+            </div>
+        </div>
+        <?php
+    }
+
+    /**
+     * Render a select dropdown field.
+     */
+    private function render_select_field($label, $name, $value, $options, $desc)
+    {
+        ?>
+        <div class="wb-field">
+            <label class="wb-field__label" for="<?php echo esc_attr($name); ?>"><?php echo esc_html($label); ?></label>
+            <div class="wb-field__control">
+                <select id="<?php echo esc_attr($name); ?>" name="<?php echo esc_attr($name); ?>" class="wb-select">
+                    <?php foreach ($options as $opt_val => $opt_label): ?>
+                        <option value="<?php echo esc_attr($opt_val); ?>" <?php selected($value, $opt_val); ?>>
+                            <?php echo esc_html($opt_label); ?>
+                        </option>
+                    <?php endforeach; ?>
+                </select>
+                <p class="wb-field__desc"><?php echo esc_html($desc); ?></p>
+            </div>
+        </div>
+        <?php
+    }
+
+    /**
+     * Render an admin notice.
+     */
+    private function render_notice($type, $message)
+    {
+        $icon = ($type === 'success') ? WooBooster_Icons::get('check') : '';
+        echo '<div class="wb-message wb-message--' . esc_attr($type) . '">';
+        echo $icon; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+        echo '<span>' . esc_html($message) . '</span>';
         echo '</div>';
-        echo '</div></div>';
     }
 
     /**
