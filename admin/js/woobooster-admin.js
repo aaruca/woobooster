@@ -381,13 +381,10 @@
     var addGroupBtn = document.getElementById('wb-add-group');
     if (!container) return;
 
-    // Hierarchical taxonomies.
-    var hierarchical = ['product_cat'];
-
     // Init existing rows.
     container.querySelectorAll('.wb-condition-row').forEach(function (row) {
+      initConditionTypeToggle(row);
       initRowAutocomplete(row);
-      initRowChildToggle(row);
     });
 
     // Wire up existing remove buttons.
@@ -462,20 +459,30 @@
       row.className = 'wb-condition-row';
       row.dataset.condition = cIdx;
 
-      // Build taxonomy options from existing select.
-      var existingSelect = container.querySelector('.wb-condition-attr');
-      var options = '<option value="">Attribute…</option>';
-      if (existingSelect) {
-        Array.prototype.slice.call(existingSelect.options).forEach(function (opt) {
-          if (opt.value) options += '<option value="' + opt.value + '">' + opt.textContent + '</option>';
+      // Build attribute taxonomy options from existing select.
+      var existingAttrTax = container.querySelector('.wb-condition-attr-taxonomy');
+      var attrTaxOptions = '<option value="">Attribute\u2026</option>';
+      if (existingAttrTax) {
+        Array.prototype.slice.call(existingAttrTax.options).forEach(function (opt) {
+          if (opt.value) attrTaxOptions += '<option value="' + opt.value + '">' + opt.textContent + '</option>';
         });
       }
 
       row.innerHTML =
-        '<select name="' + prefix + '[attribute]" class="wb-select wb-condition-attr" required>' + options + '</select>' +
+        // Condition Type
+        '<select class="wb-select wb-condition-type" style="width: auto; flex-shrink: 0;" required>' +
+        '<option value="">Type\u2026</option>' +
+        '<option value="category">Category</option>' +
+        '<option value="tag">Tag</option>' +
+        '<option value="attribute">Attribute</option>' +
+        '</select>' +
+        // Attribute Taxonomy (hidden unless type=attribute)
+        '<select class="wb-select wb-condition-attr-taxonomy" style="width: auto; flex-shrink: 0; display:none;">' + attrTaxOptions + '</select>' +
+        // Hidden attribute value
+        '<input type="hidden" name="' + prefix + '[attribute]" class="wb-condition-attr" value="">' +
         '<input type="hidden" name="' + prefix + '[operator]" value="equals">' +
         '<div class="wb-autocomplete wb-condition-value-wrap">' +
-        '<input type="text" class="wb-input wb-autocomplete__input wb-condition-value-display" placeholder="Value…" autocomplete="off">' +
+        '<input type="text" class="wb-input wb-autocomplete__input wb-condition-value-display" placeholder="Value\u2026" autocomplete="off">' +
         '<input type="hidden" name="' + prefix + '[value]" class="wb-condition-value-hidden">' +
         '<div class="wb-autocomplete__dropdown"></div>' +
         '</div>' +
@@ -484,8 +491,8 @@
         '</label>' +
         '<button type="button" class="wb-btn wb-btn--subtle wb-btn--xs wb-remove-condition">&times;</button>';
 
+      initConditionTypeToggle(row);
       initRowAutocomplete(row);
-      initRowChildToggle(row);
       return row;
     }
 
@@ -552,16 +559,67 @@
         });
     }
 
-    function initRowChildToggle(row) {
-      var attrSelect = row.querySelector('.wb-condition-attr');
-      var label = row.querySelector('.wb-condition-children-label');
-      if (!attrSelect || !label) return;
+    function initConditionTypeToggle(row) {
+      var typeSelect = row.querySelector('.wb-condition-type');
+      var attrTaxSelect = row.querySelector('.wb-condition-attr-taxonomy');
+      var hiddenAttr = row.querySelector('.wb-condition-attr');
+      var childLabel = row.querySelector('.wb-condition-children-label');
 
-      function toggle() {
-        label.style.display = hierarchical.indexOf(attrSelect.value) !== -1 ? '' : 'none';
+      if (!typeSelect || !hiddenAttr) return;
+
+      function syncUI() {
+        var type = typeSelect.value;
+        if (attrTaxSelect) {
+          attrTaxSelect.style.display = type === 'attribute' ? '' : 'none';
+        }
+        if (childLabel) {
+          childLabel.style.display = type === 'category' ? '' : 'none';
+        }
       }
-      attrSelect.addEventListener('change', toggle);
-      toggle();
+
+      typeSelect.addEventListener('change', function () {
+        var type = typeSelect.value;
+        if (type === 'category') {
+          hiddenAttr.value = 'product_cat';
+        } else if (type === 'tag') {
+          hiddenAttr.value = 'product_tag';
+        } else if (type === 'attribute' && attrTaxSelect) {
+          hiddenAttr.value = attrTaxSelect.value;
+        } else {
+          hiddenAttr.value = '';
+        }
+        syncUI();
+        // Clear value when type changes.
+        var display = row.querySelector('.wb-condition-value-display');
+        var hidden = row.querySelector('.wb-condition-value-hidden');
+        var dropdown = row.querySelector('.wb-autocomplete__dropdown');
+        if (display) display.value = '';
+        if (hidden) hidden.value = '';
+        if (dropdown) dropdown.innerHTML = '';
+        if (hiddenAttr.value) {
+          searchRowTerms(display, hidden, dropdown, hiddenAttr, '');
+        }
+      });
+
+      if (attrTaxSelect) {
+        attrTaxSelect.addEventListener('change', function () {
+          if (typeSelect.value === 'attribute') {
+            hiddenAttr.value = attrTaxSelect.value;
+          }
+          var display = row.querySelector('.wb-condition-value-display');
+          var hidden = row.querySelector('.wb-condition-value-hidden');
+          var dropdown = row.querySelector('.wb-autocomplete__dropdown');
+          if (display) display.value = '';
+          if (hidden) hidden.value = '';
+          if (dropdown) dropdown.innerHTML = '';
+          if (attrTaxSelect.value) {
+            searchRowTerms(display, hidden, dropdown, hiddenAttr, '');
+          }
+        });
+      }
+
+      // Initial UI sync (don't overwrite hidden attr for existing rows).
+      syncUI();
     }
 
     function renumberFields() {

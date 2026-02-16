@@ -158,15 +158,43 @@ class WooBooster_Rule_Form
 
                 echo '<div class="wb-condition-row" data-condition="' . esc_attr($cond_index) . '">';
 
-                // Attribute select.
-                echo '<select name="' . esc_attr($field_prefix . '[attribute]') . '" class="wb-select wb-condition-attr" required>';
+                // Determine condition type from existing attribute.
+                $c_type = '';
+                $c_attr_taxonomy = '';
+                if ('product_cat' === $c_attr) {
+                    $c_type = 'category';
+                } elseif ('product_tag' === $c_attr) {
+                    $c_type = 'tag';
+                } elseif (!empty($c_attr)) {
+                    $c_type = 'attribute';
+                    $c_attr_taxonomy = $c_attr;
+                }
+
+                // Condition Type select.
+                echo '<select class="wb-select wb-condition-type" style="width: auto; flex-shrink: 0;" required>';
+                echo '<option value="">' . esc_html__('Type…', 'woobooster') . '</option>';
+                echo '<option value="category"' . selected($c_type, 'category', false) . '>' . esc_html__('Category', 'woobooster') . '</option>';
+                echo '<option value="tag"' . selected($c_type, 'tag', false) . '>' . esc_html__('Tag', 'woobooster') . '</option>';
+                echo '<option value="attribute"' . selected($c_type, 'attribute', false) . '>' . esc_html__('Attribute', 'woobooster') . '</option>';
+                echo '</select>';
+
+                // Attribute Taxonomy select (shown only when type = attribute).
+                $cond_attr_taxonomies = wc_get_attribute_taxonomies();
+                $display_cond_attr = 'attribute' === $c_type ? '' : 'display:none;';
+                echo '<select class="wb-select wb-condition-attr-taxonomy" style="width: auto; flex-shrink: 0; ' . esc_attr($display_cond_attr) . '">';
                 echo '<option value="">' . esc_html__('Attribute…', 'woobooster') . '</option>';
-                foreach ($taxonomies as $tax_slug => $tax_label) {
-                    echo '<option value="' . esc_attr($tax_slug) . '"' . selected($c_attr, $tax_slug, false) . '>';
-                    echo esc_html($tax_label);
-                    echo '</option>';
+                if ($cond_attr_taxonomies) {
+                    foreach ($cond_attr_taxonomies as $attribute) {
+                        $tax_name = wc_attribute_taxonomy_name($attribute->attribute_name);
+                        echo '<option value="' . esc_attr($tax_name) . '"' . selected($c_attr_taxonomy, $tax_name, false) . '>';
+                        echo esc_html($attribute->attribute_label);
+                        echo '</option>';
+                    }
                 }
                 echo '</select>';
+
+                // Hidden attribute value (actual taxonomy name for save).
+                echo '<input type="hidden" name="' . esc_attr($field_prefix . '[attribute]') . '" class="wb-condition-attr" value="' . esc_attr($c_attr) . '">';
 
                 // Hidden operator.
                 echo '<input type="hidden" name="' . esc_attr($field_prefix . '[operator]') . '" value="equals">';
