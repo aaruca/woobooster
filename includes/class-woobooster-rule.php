@@ -172,7 +172,7 @@ class WooBooster_Rule
         $inserted = $wpdb->insert(
             self::$table,
             $data,
-            self::get_format()
+            self::get_format($data)
         );
 
         if ($inserted) {
@@ -202,7 +202,7 @@ class WooBooster_Rule
             self::$table,
             $data,
             array('id' => absint($id)),
-            self::get_format(),
+            self::get_format($data),
             array('%d')
         );
 
