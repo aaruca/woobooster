@@ -66,6 +66,23 @@ class WooBooster_Admin
             'woobooster-diagnostics',
             array($this, 'render_page')
         );
+
+        add_submenu_page(
+            'woobooster',
+            __('Documentation', 'woobooster'),
+            __('Documentation', 'woobooster'),
+            'manage_woocommerce',
+            'woobooster-documentation',
+            array($this, 'render_page')
+        );
+        add_submenu_page(
+            'woobooster',
+            __('Documentation', 'woobooster'),
+            __('Documentation', 'woobooster'),
+            'manage_woocommerce',
+            'woobooster-documentation',
+            array($this, 'render_page')
+        );
     }
 
     /**
@@ -78,7 +95,10 @@ class WooBooster_Admin
         $allowed_hooks = array(
             'toplevel_page_woobooster',
             'woobooster_page_woobooster-rules',
+            'woobooster_page_woobooster-rules',
             'woobooster_page_woobooster-diagnostics',
+            'woobooster_page_woobooster-documentation',
+            'woobooster_page_woobooster-documentation',
         );
 
         if (!in_array($hook, $allowed_hooks, true)) {
@@ -138,6 +158,10 @@ class WooBooster_Admin
             case 'woobooster-diagnostics':
                 $this->render_diagnostics_page();
                 break;
+            case 'woobooster-documentation':
+                $this->render_documentation_page();
+                break;
+
             default:
                 $this->render_settings_page();
                 break;
@@ -181,6 +205,14 @@ class WooBooster_Admin
             'woobooster-diagnostics' => array(
                 'label' => __('Diagnostics', 'woobooster'),
                 'icon' => WooBooster_Icons::get('search'),
+            ),
+            'woobooster-diagnostics' => array(
+                'label' => __('Diagnostics', 'woobooster'),
+                'icon' => WooBooster_Icons::get('search'),
+            ),
+            'woobooster-documentation' => array(
+                'label' => __('Documentation', 'woobooster'),
+                'icon' => WooBooster_Icons::get('docs'),
             ),
         );
 
@@ -452,6 +484,56 @@ class WooBooster_Admin
                 echo '</div></div>';
                 break;
         }
+    }
+
+    /**
+     * Render the Documentation page.
+     */
+    private function render_documentation_page()
+    {
+        ?>
+        <div class="wb-card">
+            <div class="wb-card__header">
+                <h2><?php esc_html_e('Documentation', 'woobooster'); ?></h2>
+            </div>
+            <div class="wb-card__body">
+                <h3><?php esc_html_e('Getting Started', 'woobooster'); ?></h3>
+                <p><?php esc_html_e('WooBooster automatically displays recommended products based on your rules. By default, it replaces the standard WooCommerce "Related Products" section.', 'woobooster'); ?>
+                </p>
+
+                <hr class="wb-hr">
+
+                <h3><?php esc_html_e('Shortcode Usage', 'woobooster'); ?></h3>
+                <p><?php esc_html_e('Use the shortcode to display recommendations anywhere on your site:', 'woobooster'); ?></p>
+                <code class="wb-code">[woobooster product_id="123" limit="4"]</code>
+                <ul class="wb-list">
+                    <li><strong>product_id</strong>:
+                        <?php esc_html_e('(Optional) ID of the product to base recommendations on. Defaults to current product.', 'woobooster'); ?>
+                    </li>
+                    <li><strong>limit</strong>:
+                        <?php esc_html_e('(Optional) Number of products to show. Default: 4.', 'woobooster'); ?></li>
+                </ul>
+
+                <hr class="wb-hr">
+
+                <h3><?php esc_html_e('Bricks Builder Integration', 'woobooster'); ?></h3>
+                <p><?php esc_html_e('WooBooster is fully compatible with Bricks Builder.', 'woobooster'); ?></p>
+                <ol class="wb-list">
+                    <li><?php esc_html_e('Add a "Query Loop" element to your template.', 'woobooster'); ?></li>
+                    <li><?php esc_html_e('Set the Query Type to "WooBooster Recommendations".', 'woobooster'); ?></li>
+                    <li><?php esc_html_e('Customize your layout using standard Bricks elements.', 'woobooster'); ?></li>
+                </ol>
+                <p><em><?php esc_html_e('Note: In Bricks, you must manually add a Heading element above your loop if you want a section title.', 'woobooster'); ?></em>
+                </p>
+
+                <hr class="wb-hr">
+
+                <h3><?php esc_html_e('Rules Engine', 'woobooster'); ?></h3>
+                <p><?php esc_html_e('Rules are processed in order from top to bottom. The first rule that matches the current product will be used to generate recommendations. If no rules match, the global fallback (Successor/Interchangeable/Category) is used.', 'woobooster'); ?>
+                </p>
+            </div>
+        </div>
+        <?php
     }
 
     /**
