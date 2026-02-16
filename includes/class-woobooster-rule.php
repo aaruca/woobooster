@@ -565,7 +565,7 @@ class WooBooster_Rule
         }
 
         if (isset($data['action_source'])) {
-            $allowed_sources = array('category', 'tag', 'attribute');
+            $allowed_sources = array('category', 'tag', 'attribute', 'attribute_value', 'copurchase', 'trending', 'recently_viewed', 'similar');
             $sanitized['action_source'] = in_array($data['action_source'], $allowed_sources, true)
                 ? $data['action_source']
                 : 'category';

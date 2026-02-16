@@ -189,17 +189,30 @@
       row.dataset.index = idx;
       var prefix = 'actions[' + idx + ']';
 
+      // Build attribute taxonomy options from existing select.
+      var existingAttrSelect = document.querySelector('.wb-action-attr-taxonomy');
+      var attrOptions = '<option value="">Attribute\u2026</option>';
+      if (existingAttrSelect) {
+        Array.prototype.slice.call(existingAttrSelect.options).forEach(function (opt) {
+          if (opt.value) attrOptions += '<option value="' + opt.value + '">' + opt.textContent + '</option>';
+        });
+      }
+
       row.innerHTML =
         // Source Type
         '<select name="' + prefix + '[action_source]" class="wb-select wb-action-source" style="width: auto; flex-shrink: 0;">' +
         '<option value="category">Category</option>' +
         '<option value="tag">Tag</option>' +
         '<option value="attribute">Same Attribute</option>' +
+        '<option value="attribute_value">Attribute</option>' +
         '<option value="copurchase">Bought Together</option>' +
         '<option value="trending">Trending</option>' +
         '<option value="recently_viewed">Recently Viewed</option>' +
         '<option value="similar">Similar Products</option>' +
         '</select>' +
+
+        // Attribute Taxonomy (for attribute_value source)
+        '<select class="wb-select wb-action-attr-taxonomy" style="width: auto; flex-shrink: 0; display:none;">' + attrOptions + '</select>' +
 
         // Value Autocomplete
         '<div class="wb-autocomplete wb-action-value-wrap" style="flex: 1; min-width: 200px;">' +
@@ -252,6 +265,7 @@
       var source = row.querySelector('.wb-action-source');
       var valWrap = row.querySelector('.wb-action-value-wrap');
       var childLabel = row.querySelector('.wb-action-children-label');
+      var attrTaxSelect = row.querySelector('.wb-action-attr-taxonomy');
       var noValueSources = ['attribute', 'copurchase', 'trending', 'recently_viewed', 'similar'];
 
       function toggle() {
@@ -260,6 +274,9 @@
         }
         if (childLabel) {
           childLabel.style.display = source.value === 'category' ? '' : 'none';
+        }
+        if (attrTaxSelect) {
+          attrTaxSelect.style.display = source.value === 'attribute_value' ? '' : 'none';
         }
       }
 
@@ -274,6 +291,7 @@
       var hidden = row.querySelector('.wb-action-value-hidden');
       var dropdown = row.querySelector('.wb-autocomplete__dropdown');
       var sourceSelect = row.querySelector('.wb-action-source');
+      var attrTaxSelect = row.querySelector('.wb-action-attr-taxonomy');
 
       if (!display || !hidden || !dropdown || !sourceSelect) return;
 
@@ -282,6 +300,7 @@
       function getTaxonomy() {
         if (sourceSelect.value === 'category') return 'product_cat';
         if (sourceSelect.value === 'tag') return 'product_tag';
+        if (sourceSelect.value === 'attribute_value' && attrTaxSelect) return attrTaxSelect.value;
         return '';
       }
 
@@ -307,7 +326,12 @@
               item.textContent = t.name + ' (' + t.count + ')';
               item.addEventListener('click', function () {
                 display.value = t.name;
-                hidden.value = t.slug;
+                // For attribute_value, store taxonomy:term_slug.
+                if (sourceSelect.value === 'attribute_value' && attrTaxSelect && attrTaxSelect.value) {
+                  hidden.value = attrTaxSelect.value + ':' + t.slug;
+                } else {
+                  hidden.value = t.slug;
+                }
                 dropdown.style.display = 'none';
               });
               dropdown.appendChild(item);
@@ -335,6 +359,18 @@
           dropdown.style.display = 'none';
         }
       });
+
+      // When attribute taxonomy changes, reset value and search.
+      if (attrTaxSelect) {
+        attrTaxSelect.addEventListener('change', function () {
+          display.value = '';
+          hidden.value = '';
+          dropdown.innerHTML = '';
+          if (sourceSelect.value === 'attribute_value' && attrTaxSelect.value) {
+            searchTerms('');
+          }
+        });
+      }
     }
   }
 

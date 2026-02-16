@@ -238,12 +238,25 @@ class WooBooster_Rule_Form
 
             // Resolve label for existing value.
             $a_label = '';
+            $selected_attr_tax = '';
+            $attr_term_slug = '';
+
             if ($a_value) {
-                $action_tax = 'category' === $a_source ? 'product_cat' : ('tag' === $a_source ? 'product_tag' : '');
-                if ($action_tax) {
-                    $term = get_term_by('slug', $a_value, $action_tax);
+                if ('attribute_value' === $a_source && false !== strpos($a_value, ':')) {
+                    $parts = explode(':', $a_value, 2);
+                    $selected_attr_tax = $parts[0];
+                    $attr_term_slug = $parts[1];
+                    $term = get_term_by('slug', $attr_term_slug, $selected_attr_tax);
                     if ($term && !is_wp_error($term)) {
                         $a_label = $term->name;
+                    }
+                } else {
+                    $action_tax = 'category' === $a_source ? 'product_cat' : ('tag' === $a_source ? 'product_tag' : '');
+                    if ($action_tax) {
+                        $term = get_term_by('slug', $a_value, $action_tax);
+                        if ($term && !is_wp_error($term)) {
+                            $a_label = $term->name;
+                        }
                     }
                 }
             }
@@ -257,10 +270,26 @@ class WooBooster_Rule_Form
             echo '<option value="category"' . selected($a_source, 'category', false) . '>' . esc_html__('Category', 'woobooster') . '</option>';
             echo '<option value="tag"' . selected($a_source, 'tag', false) . '>' . esc_html__('Tag', 'woobooster') . '</option>';
             echo '<option value="attribute"' . selected($a_source, 'attribute', false) . '>' . esc_html__('Same Attribute', 'woobooster') . '</option>';
+            echo '<option value="attribute_value"' . selected($a_source, 'attribute_value', false) . '>' . esc_html__('Attribute', 'woobooster') . '</option>';
             echo '<option value="copurchase"' . selected($a_source, 'copurchase', false) . '>' . esc_html__('Bought Together', 'woobooster') . '</option>';
             echo '<option value="trending"' . selected($a_source, 'trending', false) . '>' . esc_html__('Trending', 'woobooster') . '</option>';
             echo '<option value="recently_viewed"' . selected($a_source, 'recently_viewed', false) . '>' . esc_html__('Recently Viewed', 'woobooster') . '</option>';
             echo '<option value="similar"' . selected($a_source, 'similar', false) . '>' . esc_html__('Similar Products', 'woobooster') . '</option>';
+            echo '</select>';
+
+            // Attribute Taxonomy Selector (for attribute_value source).
+            $attr_taxonomies = wc_get_attribute_taxonomies();
+            $display_attr = 'attribute_value' === $a_source ? '' : 'display:none;';
+            echo '<select class="wb-select wb-action-attr-taxonomy" style="width: auto; flex-shrink: 0; ' . esc_attr($display_attr) . '">';
+            echo '<option value="">' . esc_html__('Attribute…', 'woobooster') . '</option>';
+            if ($attr_taxonomies) {
+                foreach ($attr_taxonomies as $attribute) {
+                    $tax_name = wc_attribute_taxonomy_name($attribute->attribute_name);
+                    echo '<option value="' . esc_attr($tax_name) . '"' . selected($selected_attr_tax, $tax_name, false) . '>';
+                    echo esc_html($attribute->attribute_label);
+                    echo '</option>';
+                }
+            }
             echo '</select>';
 
             // Value Autocomplete.

@@ -550,6 +550,17 @@ class WooBooster_Matcher
                     'term' => $this->find_term_slug_from_product($action->action_value, $terms),
                 );
 
+            case 'attribute_value':
+                // action_value is stored as 'taxonomy:term_slug' (e.g., 'pa_brand:glock').
+                $parts = explode(':', $action->action_value, 2);
+                if (count($parts) !== 2 || empty($parts[0]) || empty($parts[1])) {
+                    return null;
+                }
+                return array(
+                    'taxonomy' => $parts[0],
+                    'term' => $parts[1],
+                );
+
             default:
                 return null;
         }

@@ -175,6 +175,7 @@ class WooBooster_Rule_List extends WP_List_Table
             'category' => __('Category', 'woobooster'),
             'tag' => __('Tag', 'woobooster'),
             'attribute' => __('Same Attribute', 'woobooster'),
+            'attribute_value' => __('Attribute', 'woobooster'),
             'copurchase' => __('Bought Together', 'woobooster'),
             'trending' => __('Trending', 'woobooster'),
             'recently_viewed' => __('Recently Viewed', 'woobooster'),
@@ -188,7 +189,14 @@ class WooBooster_Rule_List extends WP_List_Table
 
         $first = reset($actions);
         $source = isset($source_labels[$first->action_source]) ? $source_labels[$first->action_source] : $first->action_source;
-        $value = 'attribute' === $first->action_source ? '—' : $first->action_value;
+        $value = $first->action_value;
+        if ('attribute' === $first->action_source) {
+            $value = '—';
+        } elseif ('attribute_value' === $first->action_source && false !== strpos($first->action_value, ':')) {
+            $parts = explode(':', $first->action_value, 2);
+            $term = get_term_by('slug', $parts[1], $parts[0]);
+            $value = $term && !is_wp_error($term) ? $parts[0] . ': ' . $term->name : $first->action_value;
+        }
 
         $html = esc_html($source) . ': <code>' . esc_html($value) . '</code>'
             . ' <span class="wb-text--muted">(' . esc_html($first->action_orderby) . ', '
