@@ -7,99 +7,6 @@
 
   var cfg = window.wooboosterAdmin || {};
 
-  /* ── Autocomplete ─────────────────────────────────────────────────── */
-
-  function initAutocomplete(inputId, hiddenId, dropdownId, getTaxonomy) {
-    var display = document.getElementById(inputId);
-    var hidden = document.getElementById(hiddenId);
-    var dropdown = document.getElementById(dropdownId);
-    if (!display || !hidden || !dropdown) return;
-
-    var debounce = null;
-    var currentPage = 1;
-
-    display.addEventListener('input', function () {
-      clearTimeout(debounce);
-      hidden.value = '';
-      currentPage = 1;
-      debounce = setTimeout(function () { searchTerms(display.value, 1); }, 300);
-    });
-
-    display.addEventListener('focus', function () {
-      if (!dropdown.children.length && display.value.length === 0) {
-        searchTerms('', 1);
-      } else if (dropdown.children.length) {
-        dropdown.style.display = 'block';
-      }
-    });
-
-    document.addEventListener('click', function (e) {
-      if (!dropdown.contains(e.target) && e.target !== display) {
-        dropdown.style.display = 'none';
-      }
-    });
-
-    function searchTerms(search, page) {
-      var taxonomy = getTaxonomy();
-      if (!taxonomy) { dropdown.style.display = 'none'; return; }
-
-      var fd = new FormData();
-      fd.append('action', 'woobooster_search_terms');
-      fd.append('nonce', cfg.nonce);
-      fd.append('taxonomy', taxonomy);
-      fd.append('search', search);
-      fd.append('page', page);
-
-      fetch(cfg.ajaxUrl, { method: 'POST', body: fd })
-        .then(function (r) { return r.json(); })
-        .then(function (res) {
-          if (!res.success) return;
-          if (page === 1) dropdown.innerHTML = '';
-
-          res.data.terms.forEach(function (t) {
-            var item = document.createElement('div');
-            item.className = 'wb-autocomplete__item';
-            item.textContent = t.name + ' (' + t.count + ')';
-            item.dataset.slug = t.slug;
-            item.dataset.name = t.name;
-            item.addEventListener('click', function () {
-              display.value = t.name;
-              hidden.value = t.slug;
-              dropdown.style.display = 'none';
-            });
-            dropdown.appendChild(item);
-          });
-
-          if (res.data.has_more) {
-            var more = document.createElement('div');
-            more.className = 'wb-autocomplete__more';
-            more.textContent = cfg.i18n.loading || 'Load more…';
-            more.addEventListener('click', function () {
-              more.remove();
-              searchTerms(search, page + 1);
-            });
-            dropdown.appendChild(more);
-          }
-
-          dropdown.style.display = dropdown.children.length ? 'block' : 'none';
-        });
-    }
-  }
-
-  /* ── Action Source Toggle ──────────────────────────────────────────── */
-
-  function initSourceToggle() {
-    var source = document.getElementById('wb-action-source');
-    var field = document.getElementById('wb-action-value-field');
-    if (!source || !field) return;
-
-    function toggle() {
-      field.style.display = source.value === 'attribute' ? 'none' : '';
-    }
-    source.addEventListener('change', toggle);
-    toggle();
-  }
-
   /* ── Rule Toggle (inline) ─────────────────────────────────────────── */
 
   function initRuleToggles() {
@@ -282,43 +189,27 @@
       var prefix = 'actions[' + idx + ']';
 
       row.innerHTML =
-        '<div class="wb-action-row__header">' +
-        '<span class="wb-action-row__title">Action <span class="wb-action-number">' + (idx + 1) + '</span></span>' +
-        '<button type="button" class="wb-btn wb-btn--danger wb-btn--xs wb-remove-action" title="Remove Action">&times;</button>' +
-        '</div>' +
-        '<div class="wb-action-row__body">' +
-
         // Source Type
-        '<div class="wb-field">' +
-        '<label class="wb-field__label">Source Type</label>' +
-        '<div class="wb-field__control">' +
-        '<select name="' + prefix + '[action_source]" class="wb-select wb-action-source">' +
+        '<select name="' + prefix + '[action_source]" class="wb-select wb-action-source" style="width: auto; flex-shrink: 0;">' +
         '<option value="category">Category</option>' +
         '<option value="tag">Tag</option>' +
         '<option value="attribute">Same Attribute</option>' +
         '</select>' +
-        '<p class="wb-field__desc wb-attribute-desc" style="display:none;">"Same Attribute" uses the condition\'s attribute and value.</p>' +
-        '</div></div>' +
 
-        // Source Value
-        '<div class="wb-field wb-action-value-field">' +
-        '<label class="wb-field__label">Source Value</label>' +
-        '<div class="wb-field__control">' +
-        '<div class="wb-autocomplete">' +
-        '<input type="text" class="wb-input wb-autocomplete__input wb-action-value-display" placeholder="Search terms…" autocomplete="off">' +
+        // Value Autocomplete
+        '<div class="wb-autocomplete wb-action-value-wrap" style="flex: 1; min-width: 200px;">' +
+        '<input type="text" class="wb-input wb-autocomplete__input wb-action-value-display" placeholder="Value\u2026" autocomplete="off">' +
         '<input type="hidden" name="' + prefix + '[action_value]" class="wb-action-value-hidden">' +
         '<div class="wb-autocomplete__dropdown"></div>' +
         '</div>' +
-        '</div></div>' +
 
-        // Order By & Limit Row
-        '<div class="wb-field-row">' +
+        // Include Children
+        '<label class="wb-checkbox wb-action-children-label" style="display:none; margin-left: 10px; align-self: center;">' +
+        '<input type="checkbox" name="' + prefix + '[include_children]" value="1"> + Children' +
+        '</label>' +
 
         // Order By
-        '<div class="wb-field">' +
-        '<label class="wb-field__label">Order By</label>' +
-        '<div class="wb-field__control">' +
-        '<select name="' + prefix + '[action_orderby]" class="wb-select">' +
+        '<select name="' + prefix + '[action_orderby]" class="wb-select" style="width: auto; flex-shrink: 0;" title="Order By">' +
         '<option value="rand">Random</option>' +
         '<option value="date">Newest</option>' +
         '<option value="price">Price (Low to High)</option>' +
@@ -326,18 +217,12 @@
         '<option value="bestselling">Bestselling</option>' +
         '<option value="rating">Rating</option>' +
         '</select>' +
-        '</div></div>' +
 
         // Limit
-        '<div class="wb-field">' +
-        '<label class="wb-field__label">Limit</label>' +
-        '<div class="wb-field__control">' +
-        '<input type="number" name="' + prefix + '[action_limit]" value="4" min="1" class="wb-input wb-input--sm">' +
-        '</div></div>' +
+        '<input type="number" name="' + prefix + '[action_limit]" value="4" min="1" class="wb-input wb-input--sm" style="width: 70px;" title="Limit">' +
 
-        '</div>' + // .wb-field-row
-
-        '</div>'; // .wb-action-row__body
+        // Remove
+        '<button type="button" class="wb-btn wb-btn--subtle wb-btn--xs wb-remove-action" title="Remove">&times;</button>';
 
       return row;
     }
@@ -360,16 +245,15 @@
 
     function initActionRowToggle(row) {
       var source = row.querySelector('.wb-action-source');
-      var valField = row.querySelector('.wb-action-value-field');
-      var attrDesc = row.querySelector('.wb-attribute-desc');
+      var valWrap = row.querySelector('.wb-action-value-wrap');
+      var childLabel = row.querySelector('.wb-action-children-label');
 
       function toggle() {
-        if (source.value === 'attribute') {
-          valField.style.display = 'none';
-          attrDesc.style.display = 'block';
-        } else {
-          valField.style.display = 'block';
-          attrDesc.style.display = 'none';
+        if (valWrap) {
+          valWrap.style.display = source.value === 'attribute' ? 'none' : '';
+        }
+        if (childLabel) {
+          childLabel.style.display = source.value === 'category' ? '' : 'none';
         }
       }
 

@@ -59,17 +59,6 @@ class WooBooster_Rule_Form
             );
         }
 
-        $action_value_label = '';
-        if ($action_value) {
-            $action_tax = 'category' === $action_source ? 'product_cat' : ('tag' === $action_source ? 'product_tag' : '');
-            if ($action_tax) {
-                $term = get_term_by('slug', $action_value, $action_tax);
-                if ($term && !is_wp_error($term)) {
-                    $action_value_label = $term->name;
-                }
-            }
-        }
-
         echo '<div class="wb-card">';
         echo '<div class="wb-card__header">';
         echo '<h2>' . esc_html($title) . '</h2>';
@@ -245,6 +234,7 @@ class WooBooster_Rule_Form
             $a_value = $action->action_value;
             $a_orderby = $action->action_orderby;
             $a_limit = $action->action_limit;
+            $a_inc = isset($action->include_children) ? (int) $action->include_children : 0;
 
             // Resolve label for existing value.
             $a_label = '';
@@ -275,6 +265,13 @@ class WooBooster_Rule_Form
             echo '<input type="hidden" name="' . esc_attr($prefix . '[action_value]') . '" class="wb-action-value-hidden" value="' . esc_attr($a_value) . '">';
             echo '<div class="wb-autocomplete__dropdown"></div>';
             echo '</div>';
+
+            // Include Children Checkbox (hidden unless source=category).
+            $display_inc = 'category' === $a_source ? '' : 'display:none;';
+            echo '<label class="wb-checkbox wb-action-children-label" style="' . esc_attr($display_inc) . ' margin-left: 10px; align-self: center;">';
+            echo '<input type="checkbox" name="' . esc_attr($prefix . '[include_children]') . '" value="1"' . checked($a_inc, 1, false) . '> ';
+            echo esc_html__('+ Children', 'woobooster');
+            echo '</label>';
 
             // Order By.
             echo '<select name="' . esc_attr($prefix . '[action_orderby]') . '" class="wb-select" style="width: auto; flex-shrink: 0;" title="' . esc_attr__('Order By', 'woobooster') . '">';
@@ -363,6 +360,7 @@ class WooBooster_Rule_Form
                 'action_value' => isset($action['action_value']) ? sanitize_text_field(wp_unslash($action['action_value'])) : '',
                 'action_limit' => isset($action['action_limit']) ? absint($action['action_limit']) : 4,
                 'action_orderby' => isset($action['action_orderby']) ? sanitize_key($action['action_orderby']) : 'rand',
+                'include_children' => isset($action['include_children']) ? absint($action['include_children']) : 0,
             );
         }
 

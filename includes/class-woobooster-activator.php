@@ -45,6 +45,15 @@ class WooBooster_Activator
 			priority int(11) NOT NULL DEFAULT 10,
 			status tinyint(1) NOT NULL DEFAULT 1,
 			created_at datetime DEFAULT CURRENT_TIMESTAMP,
+			condition_attribute varchar(255) NOT NULL DEFAULT '',
+			condition_operator varchar(50) NOT NULL DEFAULT 'equals',
+			condition_value varchar(255) NOT NULL DEFAULT '',
+			include_children tinyint(1) NOT NULL DEFAULT 0,
+			action_source varchar(50) NOT NULL DEFAULT 'category',
+			action_value varchar(255) NOT NULL DEFAULT '',
+			action_orderby varchar(50) NOT NULL DEFAULT 'rand',
+			action_limit int(11) NOT NULL DEFAULT 4,
+			exclude_outofstock tinyint(1) NOT NULL DEFAULT 1,
 			updated_at datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
 			PRIMARY KEY  (id),
 			KEY status (status)
@@ -72,6 +81,7 @@ class WooBooster_Activator
 			action_value longtext NOT NULL,
 			action_limit int(11) NOT NULL DEFAULT 4,
 			action_orderby varchar(50) NOT NULL DEFAULT 'rand',
+			include_children tinyint(1) NOT NULL DEFAULT 0,
 			PRIMARY KEY  (id),
 			KEY rule_id (rule_id)
 		) $charset_collate;";
@@ -159,7 +169,12 @@ class WooBooster_Activator
                 }
             }
 
-            update_option('woobooster_db_version', WOOBOOSTER_DB_VERSION);
+            // 4. Add `include_children` column to actions table if missing.
+            $row_action_children = $wpdb->get_results("SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE table_name = '$actions_table' AND column_name = 'include_children'");
+            if (empty($row_action_children)) {
+                $wpdb->query("ALTER TABLE $actions_table ADD include_children tinyint(1) NOT NULL DEFAULT 0");
+            }
+
         }
     }
 

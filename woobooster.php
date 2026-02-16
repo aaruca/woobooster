@@ -20,7 +20,7 @@ if (!defined('ABSPATH')) {
 
 // Define plugin constants.
 define('WOOBOOSTER_VERSION', '1.5.0');
-define('WOOBOOSTER_DB_VERSION', '1.3.0');
+define('WOOBOOSTER_DB_VERSION', '1.4.0');
 define('WOOBOOSTER_FILE', __FILE__);
 define('WOOBOOSTER_PATH', plugin_dir_path(__FILE__));
 define('WOOBOOSTER_URL', plugin_dir_url(__FILE__));
@@ -120,7 +120,10 @@ final class WooBooster
     {
         $this->check_dependencies();
         $this->load_textdomain();
-        $this->maybe_update_db();
+
+        if ($this->dependencies_met) {
+            $this->maybe_update_db();
+        }
     }
 
     /**
@@ -128,6 +131,10 @@ final class WooBooster
      */
     public function init()
     {
+        if (!$this->dependencies_met) {
+            return;
+        }
+
         if (is_admin()) {
             $admin = new WooBooster_Admin();
             $admin->init();
@@ -182,13 +189,18 @@ final class WooBooster
     }
 
     /**
+     * Whether all required dependencies are met.
+     *
+     * @var bool
+     */
+    private $dependencies_met = false;
+
+    /**
      * Check if WooCommerce is active.
      */
     private function check_dependencies()
     {
-        if (!class_exists('WooCommerce')) {
-            return;
-        }
+        $this->dependencies_met = class_exists('WooCommerce');
     }
 
     /**

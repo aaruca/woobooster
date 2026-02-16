@@ -142,8 +142,25 @@ class WooBooster_Rule_List extends WP_List_Table
      */
     protected function column_condition($item)
     {
-        return '<code>' . esc_html($item->condition_attribute) . '</code> = '
-            . '<code>' . esc_html($item->condition_value) . '</code>';
+        $groups = WooBooster_Rule::get_conditions($item->id);
+        if (empty($groups)) {
+            return '<span class="wb-text--muted">—</span>';
+        }
+
+        $first_group = reset($groups);
+        $first_cond = reset($first_group);
+        $html = '<code>' . esc_html($first_cond->condition_attribute) . '</code> = '
+            . '<code>' . esc_html($first_cond->condition_value) . '</code>';
+
+        $total = 0;
+        foreach ($groups as $g) {
+            $total += count($g);
+        }
+        if ($total > 1) {
+            $html .= ' <span class="wb-badge wb-badge--neutral">+' . ($total - 1) . '</span>';
+        }
+
+        return $html;
     }
 
     /**
@@ -160,12 +177,24 @@ class WooBooster_Rule_List extends WP_List_Table
             'attribute' => __('Same Attribute', 'woobooster'),
         );
 
-        $source = isset($source_labels[$item->action_source]) ? $source_labels[$item->action_source] : $item->action_source;
-        $value = 'attribute' === $item->action_source ? '—' : $item->action_value;
+        $actions = WooBooster_Rule::get_actions($item->id);
+        if (empty($actions)) {
+            return '<span class="wb-text--muted">—</span>';
+        }
 
-        return esc_html($source) . ': <code>' . esc_html($value) . '</code>'
-            . ' <span class="wb-text--muted">(' . esc_html($item->action_orderby) . ', '
-            . esc_html($item->action_limit) . ')</span>';
+        $first = reset($actions);
+        $source = isset($source_labels[$first->action_source]) ? $source_labels[$first->action_source] : $first->action_source;
+        $value = 'attribute' === $first->action_source ? '—' : $first->action_value;
+
+        $html = esc_html($source) . ': <code>' . esc_html($value) . '</code>'
+            . ' <span class="wb-text--muted">(' . esc_html($first->action_orderby) . ', '
+            . esc_html($first->action_limit) . ')</span>';
+
+        if (count($actions) > 1) {
+            $html .= ' <span class="wb-badge wb-badge--neutral">+' . (count($actions) - 1) . '</span>';
+        }
+
+        return $html;
     }
 
     /**

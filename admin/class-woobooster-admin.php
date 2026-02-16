@@ -90,9 +90,7 @@ class WooBooster_Admin
         $allowed_hooks = array(
             'toplevel_page_woobooster',
             'woobooster_page_woobooster-rules',
-            'woobooster_page_woobooster-rules',
             'woobooster_page_woobooster-diagnostics',
-            'woobooster_page_woobooster-documentation',
             'woobooster_page_woobooster-documentation',
         );
 
@@ -238,9 +236,6 @@ class WooBooster_Admin
     /**
      * Render the Settings page.
      */
-    /**
-     * Render the Settings page.
-     */
     private function render_settings_page()
     {
         $options = get_option('woobooster_settings', array());
@@ -332,7 +327,7 @@ class WooBooster_Admin
                     <?php esc_html_e('Click below to check GitHub for new releases. WordPress checks automatically every 12 hours.', 'woobooster'); ?>
                 </p>
                 <div style="margin-top:12px;">
-                    <button type="button" id="wb-check-update" class="wb-btn wb-btn--secondary">
+                    <button type="button" id="wb-check-update" class="wb-btn wb-btn--subtle">
                         <?php esc_html_e('Check for Updates Now', 'woobooster'); ?>
                     </button>
                     <span id="wb-update-result" style="margin-left:12px;"></span>
@@ -589,71 +584,120 @@ class WooBooster_Admin
             ));
         }
     }
-/**
-* AJAX: Export rules to JSON.
-*/
-public function ajax_export_rules()
-{
-check_ajax_referer('woobooster_admin', 'nonce');
 
-if (!current_user_can('manage_woocommerce')) {
-wp_send_json_error(array('message' => __('Permission denied.', 'woobooster')));
-}
+    /**
+     * AJAX: Export rules to JSON.
+     */
+    public function ajax_export_rules()
+    {
+        check_ajax_referer('woobooster_admin', 'nonce');
 
-$rules = WooBooster_Rule_Model::get_all();
-$export_data = array(
-'version' => WOOBOOSTER_VERSION,
-'date' => date('Y-m-d H:i:s'),
-'rules' => $rules,
-);
+        if (!current_user_can('manage_woocommerce')) {
+            wp_send_json_error(array('message' => __('Permission denied.', 'woobooster')));
+        }
 
-header('Content-Type: application/json');
-header('Content-Disposition: attachment; filename="woobooster-rules-' . date('Y-m-d') . '.json"');
-echo json_encode($export_data, JSON_PRETTY_PRINT);
-exit;
-}
+        $rules = WooBooster_Rule::get_all();
+        $export_rules = array();
 
-/**
-* AJAX: Import rules from JSON.
-*/
-public function ajax_import_rules()
-{
-check_ajax_referer('woobooster_admin', 'nonce');
+        foreach ($rules as $rule) {
+            $rule_data = (array) $rule;
+            $rule_data['conditions'] = WooBooster_Rule::get_conditions($rule->id);
+            $rule_data['actions'] = WooBooster_Rule::get_actions($rule->id);
+            $export_rules[] = $rule_data;
+        }
 
-if (!current_user_can('manage_woocommerce')) {
-wp_send_json_error(array('message' => __('Permission denied.', 'woobooster')));
-}
+        $export_data = array(
+            'version' => WOOBOOSTER_VERSION,
+            'date' => gmdate('Y-m-d H:i:s'),
+            'rules' => $export_rules,
+        );
 
-$json = isset($_POST['json']) ? wp_unslash($_POST['json']) : '';
-$data = json_decode($json, true);
+        header('Content-Type: application/json');
+        header('Content-Disposition: attachment; filename="woobooster-rules-' . gmdate('Y-m-d') . '.json"');
+        echo wp_json_encode($export_data, JSON_PRETTY_PRINT);
+        exit;
+    }
 
-if (!$data || !isset($data['rules']) || !is_array($data['rules'])) {
-wp_send_json_error(array('message' => __('Invalid JSON file.', 'woobooster')));
-}
+    /**
+     * AJAX: Import rules from JSON.
+     */
+    public function ajax_import_rules()
+    {
+        check_ajax_referer('woobooster_admin', 'nonce');
 
-$count = 0;
-foreach ($data['rules'] as $rule_data) {
-// Remove ID to create new rule.
-unset($rule_data['id']);
+        if (!current_user_can('manage_woocommerce')) {
+            wp_send_json_error(array('message' => __('Permission denied.', 'woobooster')));
+        }
 
-// Validate required fields (basic check).
-if (empty($rule_data['name'])) {
-continue;
-}
+        $json = isset($_POST['json']) ? wp_unslash($_POST['json']) : ''; // phpcs:ignore WordPress.Security.ValidatedSanitizedInput
+        $data = json_decode($json, true);
 
-// Ensure arrays are serialized if needed (Model handles extraction, but input might be raw).
-// Actually, Model::add expects an array of args.
-// We need to sanitize? Model::add does minimal sanitization unless we use a form validation helper.
-// But we assume the export is trusted or at least valid struct.
-// Let's rely on Model::add to handle the raw array.
-if (WooBooster_Rule_Model::add($rule_data)) {
-$count++;
-}
-}
+        if (!$data || !isset($data['rules']) || !is_array($data['rules'])) {
+            wp_send_json_error(array('message' => __('Invalid JSON file.', 'woobooster')));
+        }
 
-wp_send_json_success(array(
-'message' => sprintf(__('%d rules imported successfully.', 'woobooster'), $count),
-'count' => $count,
-));
-}
+        $count = 0;
+        foreach ($data['rules'] as $rule_data) {
+            $conditions = isset($rule_data['conditions']) ? $rule_data['conditions'] : array();
+            $actions = isset($rule_data['actions']) ? $rule_data['actions'] : array();
+            unset($rule_data['id'], $rule_data['conditions'], $rule_data['actions'], $rule_data['created_at'], $rule_data['updated_at']);
+
+            if (empty($rule_data['name'])) {
+                continue;
+            }
+
+            $rule_id = WooBooster_Rule::create($rule_data);
+            if ($rule_id) {
+                if (!empty($conditions)) {
+                    $clean_conditions = array();
+                    foreach ($conditions as $group_id => $group) {
+                        $group_arr = array();
+                        foreach ($group as $cond) {
+                            $cond = (array) $cond;
+                            $group_arr[] = array(
+                                'condition_attribute' => sanitize_key($cond['condition_attribute'] ?? ''),
+                                'condition_operator' => 'equals',
+                                'condition_value' => sanitize_text_field($cond['condition_value'] ?? ''),
+                                'include_children' => absint($cond['include_children'] ?? 0),
+                            );
+                        }
+                        if (!empty($group_arr)) {
+                            $clean_conditions[absint($group_id)] = $group_arr;
+                        }
+                    }
+                    if (!empty($clean_conditions)) {
+                        WooBooster_Rule::save_conditions($rule_id, $clean_conditions);
+                    }
+                }
+
+                if (!empty($actions)) {
+                    $clean_actions = array();
+                    foreach ($actions as $action) {
+                        $action = (array) $action;
+                        $clean_actions[] = array(
+                            'action_source' => sanitize_key($action['action_source'] ?? 'category'),
+                            'action_value' => sanitize_text_field($action['action_value'] ?? ''),
+                            'action_limit' => absint($action['action_limit'] ?? 4),
+                            'action_orderby' => sanitize_key($action['action_orderby'] ?? 'rand'),
+                            'include_children' => absint($action['include_children'] ?? 0),
+                        );
+                    }
+                    if (!empty($clean_actions)) {
+                        WooBooster_Rule::save_actions($rule_id, $clean_actions);
+                    }
+                }
+
+                $count++;
+            }
+        }
+
+        wp_send_json_success(array(
+            'message' => sprintf(
+                /* translators: %d: number of rules imported */
+                __('%d rules imported successfully.', 'woobooster'),
+                $count
+            ),
+            'count' => $count,
+        ));
+    }
 }

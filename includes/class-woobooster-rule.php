@@ -423,8 +423,9 @@ class WooBooster_Rule
                         'action_value' => sanitize_text_field($action['action_value']),
                         'action_limit' => absint($action['action_limit'] ?? 4),
                         'action_orderby' => sanitize_key($action['action_orderby'] ?? 'rand'),
+                        'include_children' => absint($action['include_children'] ?? 0),
                     ),
-                    array('%d', '%s', '%s', '%d', '%s')
+                    array('%d', '%s', '%s', '%d', '%s', '%d')
                 );
             }
         }

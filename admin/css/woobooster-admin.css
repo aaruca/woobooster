@@ -909,7 +909,7 @@
    17. WP-ADMIN OVERRIDES (scoped)
    ═══════════════════════════════════════════════════════════════════ */
 .woobooster-admin .tablenav {
-  padding: 0;
+  padding: 0 20px;
   margin: var(--wb-spacing-lg) 0;
   height: auto;
 }
@@ -1058,8 +1058,36 @@
 
 /* Ensure inputs in rows are compact */
 .wb-action-row .wb-input,
-.wb-action-row .wb-select {
+.wb-action-row .wb-select,
+.wb-condition-row .wb-input,
+.wb-condition-row .wb-select {
   margin-bottom: 0;
   font-size: 13px;
   padding: 8px 12px;
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   20. DOCUMENTATION HELPERS
+   ═══════════════════════════════════════════════════════════════════ */
+.wb-hr {
+  border: none;
+  border-top: 1px solid var(--wb-color-neutral-stroke-2);
+  margin: var(--wb-spacing-xl) 0;
+}
+
+.wb-list {
+  list-style: none;
+  margin: 0 0 var(--wb-spacing-lg) 0;
+  padding: 0;
+}
+
+.wb-list li {
+  padding: var(--wb-spacing-sm) 0;
+  border-bottom: 1px solid var(--wb-color-neutral-stroke-2);
+  color: var(--wb-color-neutral-foreground-2);
+  font-size: var(--wb-font-size-base);
+}
+
+.wb-list li:last-child {
+  border-bottom: none;
 }

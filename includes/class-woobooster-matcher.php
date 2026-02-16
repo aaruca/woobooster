@@ -277,6 +277,7 @@ class WooBooster_Matcher
                     'taxonomy' => $resolved['taxonomy'],
                     'field' => 'slug',
                     'terms' => $resolved['term'],
+                    'include_children' => !empty($action->include_children),
                 ),
             ),
             'no_found_rows' => true,

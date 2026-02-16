@@ -20,10 +20,16 @@ if (!empty($options['delete_data_uninstall']) && '1' === $options['delete_data_u
 
     // Drop custom tables.
     $rules_table = $wpdb->prefix . 'woobooster_rules';
+    $conditions_table = $wpdb->prefix . 'woobooster_rule_conditions';
+    $actions_table = $wpdb->prefix . 'woobooster_rule_actions';
     $index_table = $wpdb->prefix . 'woobooster_rule_index';
 
     // phpcs:ignore WordPress.DB.DirectDatabaseQuery.SchemaChange
     $wpdb->query("DROP TABLE IF EXISTS {$index_table}");
+    // phpcs:ignore WordPress.DB.DirectDatabaseQuery.SchemaChange
+    $wpdb->query("DROP TABLE IF EXISTS {$actions_table}");
+    // phpcs:ignore WordPress.DB.DirectDatabaseQuery.SchemaChange
+    $wpdb->query("DROP TABLE IF EXISTS {$conditions_table}");
     // phpcs:ignore WordPress.DB.DirectDatabaseQuery.SchemaChange
     $wpdb->query("DROP TABLE IF EXISTS {$rules_table}");
 
