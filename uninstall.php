@@ -33,12 +33,25 @@ if (!empty($options['delete_data_uninstall']) && '1' === $options['delete_data_u
     // phpcs:ignore WordPress.DB.DirectDatabaseQuery.SchemaChange
     $wpdb->query("DROP TABLE IF EXISTS {$rules_table}");
 
+    // Delete Smart Recommendations postmeta.
+    // phpcs:ignore WordPress.DB.DirectDatabaseQuery.NoDB
+    $wpdb->query("DELETE FROM {$wpdb->postmeta} WHERE meta_key = '_woobooster_copurchased'");
+
     // Delete all options.
     delete_option('woobooster_settings');
     delete_option('woobooster_version');
+    delete_option('woobooster_db_version');
+    delete_option('woobooster_last_build');
 
-    // Clear any transients.
+    // Clear plugin transients.
     $wpdb->query(
         "DELETE FROM {$wpdb->options} WHERE option_name LIKE '_transient_woobooster_%' OR option_name LIKE '_transient_timeout_woobooster_%'"
+    );
+    // Clear Smart Recommendations transients.
+    $wpdb->query(
+        "DELETE FROM {$wpdb->options} WHERE option_name LIKE '_transient_wb_trending_%' OR option_name LIKE '_transient_timeout_wb_trending_%'"
+    );
+    $wpdb->query(
+        "DELETE FROM {$wpdb->options} WHERE option_name LIKE '_transient_wb_similar_%' OR option_name LIKE '_transient_timeout_wb_similar_%'"
     );
 }

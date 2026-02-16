@@ -259,6 +259,12 @@ class WooBooster_Matcher
         $global_exclude = '1' === woobooster_get_option('exclude_outofstock', '1');
         $exclude_outofstock = isset($args['exclude_outofstock']) ? (bool) $args['exclude_outofstock'] : $global_exclude;
 
+        // Smart Recommendation sources — bypass taxonomy-based query.
+        $smart_sources = array('copurchase', 'trending', 'recently_viewed', 'similar');
+        if (in_array($action->action_source, $smart_sources, true)) {
+            return $this->execute_smart_query($product_id, $action, $limit, $exclude_outofstock, $terms);
+        }
+
         // Resolve taxonomy and term for the query.
         $resolved = $this->resolve_action($action, $terms);
 
@@ -339,6 +345,179 @@ class WooBooster_Matcher
         $result_ids = $query->posts;
 
         return $result_ids;
+    }
+
+    /**
+     * Execute a Smart Recommendation query (copurchase, trending, recently_viewed, similar).
+     *
+     * @param int    $product_id        Current product ID.
+     * @param object $action            The action object.
+     * @param int    $limit             Max products to return.
+     * @param bool   $exclude_outofstock Whether to exclude out-of-stock.
+     * @param array  $terms             Product terms.
+     * @return array Array of product IDs.
+     */
+    private function execute_smart_query($product_id, $action, $limit, $exclude_outofstock, $terms)
+    {
+        $candidate_ids = array();
+
+        switch ($action->action_source) {
+            case 'copurchase':
+                $stored = get_post_meta($product_id, '_woobooster_copurchased', true);
+                if (!empty($stored) && is_array($stored)) {
+                    $candidate_ids = array_map('absint', $stored);
+                }
+                break;
+
+            case 'trending':
+                // Get trending products from the same category.
+                $cat_ids = wp_get_post_terms($product_id, 'product_cat', array('fields' => 'ids'));
+                if (!is_wp_error($cat_ids) && !empty($cat_ids)) {
+                    foreach ($cat_ids as $cat_id) {
+                        $trending = get_transient('wb_trending_cat_' . $cat_id);
+                        if (!empty($trending) && is_array($trending)) {
+                            $candidate_ids = array_merge($candidate_ids, $trending);
+                        }
+                    }
+                }
+                // Fallback to global trending.
+                if (empty($candidate_ids)) {
+                    $global = get_transient('wb_trending_global');
+                    if (!empty($global) && is_array($global)) {
+                        $candidate_ids = $global;
+                    }
+                }
+                $candidate_ids = array_unique(array_map('absint', $candidate_ids));
+                break;
+
+            case 'recently_viewed':
+                if (isset($_COOKIE['woobooster_recently_viewed'])) {
+                    $raw = sanitize_text_field(wp_unslash($_COOKIE['woobooster_recently_viewed']));
+                    $ids = array_filter(array_map('absint', explode(',', $raw)));
+                    $candidate_ids = array_values($ids);
+                }
+                break;
+
+            case 'similar':
+                return $this->execute_similar_query($product_id, $limit, $exclude_outofstock, $terms);
+        }
+
+        if (empty($candidate_ids)) {
+            return array();
+        }
+
+        // Remove current product.
+        $candidate_ids = array_diff($candidate_ids, array($product_id));
+
+        if (empty($candidate_ids)) {
+            return array();
+        }
+
+        // Validate candidates: published products, optionally in stock.
+        $query_args = array(
+            'post_type' => 'product',
+            'post_status' => 'publish',
+            'posts_per_page' => $limit,
+            'post__in' => array_slice($candidate_ids, 0, $limit * 2),
+            'orderby' => 'post__in',
+            'fields' => 'ids',
+            'no_found_rows' => true,
+            'update_post_meta_cache' => false,
+            'update_post_term_cache' => false,
+        );
+
+        if ($exclude_outofstock) {
+            $query_args['meta_query'] = array(
+                array(
+                    'key' => '_stock_status',
+                    'value' => 'instock',
+                    'compare' => '=',
+                ),
+            );
+        }
+
+        $query = new WP_Query($query_args);
+        return $query->posts;
+    }
+
+    /**
+     * Execute a "similar products" query based on price range + category + bestselling.
+     *
+     * @param int   $product_id        Current product ID.
+     * @param int   $limit             Max products.
+     * @param bool  $exclude_outofstock Exclude out of stock.
+     * @param array $terms             Product terms.
+     * @return array Array of product IDs.
+     */
+    private function execute_similar_query($product_id, $limit, $exclude_outofstock, $terms)
+    {
+        // Check transient cache first.
+        $cache_key = 'wb_similar_' . $product_id . '_' . $limit;
+        $cached = get_transient($cache_key);
+        if (false !== $cached) {
+            return $cached;
+        }
+
+        $price = (float) get_post_meta($product_id, '_price', true);
+        $margin = 0.25;
+        $min_price = $price * (1 - $margin);
+        $max_price = $price * (1 + $margin);
+
+        // Get product categories.
+        $cat_slugs = array();
+        foreach ($terms as $term) {
+            if ('product_cat' === $term['taxonomy']) {
+                $cat_slugs[] = $term['slug'];
+            }
+        }
+
+        $query_args = array(
+            'post_type' => 'product',
+            'post_status' => 'publish',
+            'posts_per_page' => $limit,
+            'post__not_in' => array($product_id),
+            'fields' => 'ids',
+            'no_found_rows' => true,
+            'update_post_meta_cache' => false,
+            'update_post_term_cache' => false,
+            'meta_key' => 'total_sales',
+            'orderby' => 'meta_value_num',
+            'order' => 'DESC',
+            'meta_query' => array(
+                array(
+                    'key' => '_price',
+                    'value' => array($min_price, $max_price),
+                    'compare' => 'BETWEEN',
+                    'type' => 'NUMERIC',
+                ),
+            ),
+        );
+
+        if (!empty($cat_slugs)) {
+            $query_args['tax_query'] = array(
+                array(
+                    'taxonomy' => 'product_cat',
+                    'field' => 'slug',
+                    'terms' => $cat_slugs,
+                ),
+            );
+        }
+
+        if ($exclude_outofstock) {
+            $query_args['meta_query'][] = array(
+                'key' => '_stock_status',
+                'value' => 'instock',
+                'compare' => '=',
+            );
+        }
+
+        $query = new WP_Query($query_args);
+        $result = $query->posts;
+
+        // Cache for 24 hours.
+        set_transient($cache_key, $result, DAY_IN_SECONDS);
+
+        return $result;
     }
 
     /**

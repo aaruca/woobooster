@@ -139,6 +139,7 @@
     initRuleTester();
     initCheckUpdate();
     initImportExport();
+    initSmartRecommendations();
   });
 
   /* ── Action Repeater ─────────────────────────────────────────────── */
@@ -194,6 +195,10 @@
         '<option value="category">Category</option>' +
         '<option value="tag">Tag</option>' +
         '<option value="attribute">Same Attribute</option>' +
+        '<option value="copurchase">Bought Together</option>' +
+        '<option value="trending">Trending</option>' +
+        '<option value="recently_viewed">Recently Viewed</option>' +
+        '<option value="similar">Similar Products</option>' +
         '</select>' +
 
         // Value Autocomplete
@@ -247,10 +252,11 @@
       var source = row.querySelector('.wb-action-source');
       var valWrap = row.querySelector('.wb-action-value-wrap');
       var childLabel = row.querySelector('.wb-action-children-label');
+      var noValueSources = ['attribute', 'copurchase', 'trending', 'recently_viewed', 'similar'];
 
       function toggle() {
         if (valWrap) {
-          valWrap.style.display = source.value === 'attribute' ? 'none' : '';
+          valWrap.style.display = noValueSources.indexOf(source.value) !== -1 ? 'none' : '';
         }
         if (childLabel) {
           childLabel.style.display = source.value === 'category' ? '' : 'none';
@@ -643,6 +649,77 @@
           importBtn.textContent = 'Import';
           alert('Network error.');
         });
+    }
+  }
+
+  /* ── Smart Recommendations ──────────────────────────────────────── */
+
+  function initSmartRecommendations() {
+    var rebuildBtn = document.getElementById('wb-rebuild-index');
+    var purgeBtn = document.getElementById('wb-purge-index');
+    var statusEl = document.getElementById('wb-smart-status');
+
+    if (rebuildBtn) {
+      rebuildBtn.addEventListener('click', function () {
+        rebuildBtn.disabled = true;
+        rebuildBtn.textContent = 'Building…';
+        if (statusEl) statusEl.textContent = '';
+
+        var fd = new FormData();
+        fd.append('action', 'woobooster_rebuild_index');
+        fd.append('nonce', cfg.nonce);
+
+        fetch(cfg.ajaxUrl, { method: 'POST', body: fd })
+          .then(function (r) { return r.json(); })
+          .then(function (res) {
+            rebuildBtn.disabled = false;
+            rebuildBtn.textContent = 'Rebuild Now';
+            if (statusEl) {
+              statusEl.style.color = res.success ? '#00a32a' : '#d63638';
+              statusEl.textContent = res.data.message;
+            }
+          })
+          .catch(function () {
+            rebuildBtn.disabled = false;
+            rebuildBtn.textContent = 'Rebuild Now';
+            if (statusEl) {
+              statusEl.style.color = '#d63638';
+              statusEl.textContent = 'Network error.';
+            }
+          });
+      });
+    }
+
+    if (purgeBtn) {
+      purgeBtn.addEventListener('click', function () {
+        if (!confirm('Are you sure you want to clear all Smart Recommendations data?')) return;
+
+        purgeBtn.disabled = true;
+        purgeBtn.textContent = 'Clearing…';
+
+        var fd = new FormData();
+        fd.append('action', 'woobooster_purge_index');
+        fd.append('nonce', cfg.nonce);
+
+        fetch(cfg.ajaxUrl, { method: 'POST', body: fd })
+          .then(function (r) { return r.json(); })
+          .then(function (res) {
+            purgeBtn.disabled = false;
+            purgeBtn.textContent = 'Clear All Data';
+            if (statusEl) {
+              statusEl.style.color = res.success ? '#00a32a' : '#d63638';
+              statusEl.textContent = res.data.message;
+            }
+          })
+          .catch(function () {
+            purgeBtn.disabled = false;
+            purgeBtn.textContent = 'Clear All Data';
+            if (statusEl) {
+              statusEl.style.color = '#d63638';
+              statusEl.textContent = 'Network error.';
+            }
+          });
+      });
     }
   }
 })();

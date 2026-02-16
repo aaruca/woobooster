@@ -25,6 +25,8 @@ class WooBooster_Admin
         add_action('wp_ajax_woobooster_check_update', array($this, 'ajax_check_update'));
         add_action('wp_ajax_woobooster_export_rules', array($this, 'ajax_export_rules'));
         add_action('wp_ajax_woobooster_import_rules', array($this, 'ajax_import_rules'));
+        add_action('wp_ajax_woobooster_rebuild_index', array($this, 'ajax_rebuild_index'));
+        add_action('wp_ajax_woobooster_purge_index', array($this, 'ajax_purge_index'));
     }
 
     /**
@@ -306,7 +308,145 @@ class WooBooster_Admin
 
         echo '</form>';
 
+        $this->render_smart_recommendations_section();
         $this->render_updates_section();
+    }
+
+    /**
+     * Render the Smart Recommendations settings card.
+     */
+    private function render_smart_recommendations_section()
+    {
+        $options = get_option('woobooster_settings', array());
+        $last_build = get_option('woobooster_last_build', array());
+        ?>
+        <div class="wb-card" style="margin-top:24px;">
+            <div class="wb-card__header">
+                <h2><?php esc_html_e('Smart Recommendations', 'woobooster'); ?></h2>
+            </div>
+            <div class="wb-card__body">
+                <p class="wb-field__desc" style="margin-bottom:20px;">
+                    <?php esc_html_e('Enable intelligent recommendation strategies. These work as new Action Sources in your rules. Zero extra database tables — all data is stored in product meta and transients.', 'woobooster'); ?>
+                </p>
+
+                <form method="post" action="" id="wb-smart-settings-form">
+                    <?php wp_nonce_field('woobooster_save_settings', 'woobooster_settings_nonce'); ?>
+                    <input type="hidden" name="woobooster_smart_save" value="1">
+
+                    <div class="wb-field">
+                        <label class="wb-field__label"><?php esc_html_e('Bought Together', 'woobooster'); ?></label>
+                        <div class="wb-field__control">
+                            <label class="wb-toggle">
+                                <input type="checkbox" name="woobooster_smart_copurchase" value="1" <?php checked(!empty($options['smart_copurchase']), true); ?>>
+                                <span class="wb-toggle__slider"></span>
+                            </label>
+                            <p class="wb-field__desc"><?php esc_html_e('Analyze orders to find products frequently purchased together. Runs nightly via WP-Cron.', 'woobooster'); ?></p>
+                        </div>
+                    </div>
+
+                    <div class="wb-field">
+                        <label class="wb-field__label"><?php esc_html_e('Trending Products', 'woobooster'); ?></label>
+                        <div class="wb-field__control">
+                            <label class="wb-toggle">
+                                <input type="checkbox" name="woobooster_smart_trending" value="1" <?php checked(!empty($options['smart_trending']), true); ?>>
+                                <span class="wb-toggle__slider"></span>
+                            </label>
+                            <p class="wb-field__desc"><?php esc_html_e('Track bestselling products per category. Updates every 6 hours via WP-Cron.', 'woobooster'); ?></p>
+                        </div>
+                    </div>
+
+                    <div class="wb-field">
+                        <label class="wb-field__label"><?php esc_html_e('Recently Viewed', 'woobooster'); ?></label>
+                        <div class="wb-field__control">
+                            <label class="wb-toggle">
+                                <input type="checkbox" name="woobooster_smart_recently_viewed" value="1" <?php checked(!empty($options['smart_recently_viewed']), true); ?>>
+                                <span class="wb-toggle__slider"></span>
+                            </label>
+                            <p class="wb-field__desc"><?php esc_html_e('Show products the visitor recently viewed. Uses a browser cookie — zero database queries.', 'woobooster'); ?></p>
+                        </div>
+                    </div>
+
+                    <div class="wb-field">
+                        <label class="wb-field__label"><?php esc_html_e('Similar Products', 'woobooster'); ?></label>
+                        <div class="wb-field__control">
+                            <label class="wb-toggle">
+                                <input type="checkbox" name="woobooster_smart_similar" value="1" <?php checked(!empty($options['smart_similar']), true); ?>>
+                                <span class="wb-toggle__slider"></span>
+                            </label>
+                            <p class="wb-field__desc"><?php esc_html_e('Find products with similar price range and category, ordered by sales. No pre-computation needed.', 'woobooster'); ?></p>
+                        </div>
+                    </div>
+
+                    <hr style="border:none; border-top:1px solid #eee; margin:20px 0;">
+
+                    <?php
+                    $smart_days = isset($options['smart_days']) ? $options['smart_days'] : '90';
+                    $smart_max = isset($options['smart_max_relations']) ? $options['smart_max_relations'] : '20';
+                    ?>
+                    <div class="wb-field">
+                        <label class="wb-field__label" for="wb-smart-days"><?php esc_html_e('Days to Analyze', 'woobooster'); ?></label>
+                        <div class="wb-field__control">
+                            <input type="number" id="wb-smart-days" name="woobooster_smart_days" value="<?php echo esc_attr($smart_days); ?>" min="7" max="365" class="wb-input wb-input--sm" style="width:100px;">
+                            <p class="wb-field__desc"><?php esc_html_e('How many days of order history to scan for co-purchase and trending data.', 'woobooster'); ?></p>
+                        </div>
+                    </div>
+
+                    <div class="wb-field">
+                        <label class="wb-field__label" for="wb-smart-max"><?php esc_html_e('Max Relations Per Product', 'woobooster'); ?></label>
+                        <div class="wb-field__control">
+                            <input type="number" id="wb-smart-max" name="woobooster_smart_max_relations" value="<?php echo esc_attr($smart_max); ?>" min="5" max="50" class="wb-input wb-input--sm" style="width:100px;">
+                            <p class="wb-field__desc"><?php esc_html_e('Maximum number of related products to store per product in co-purchase index.', 'woobooster'); ?></p>
+                        </div>
+                    </div>
+
+                    <div class="wb-actions-bar" style="margin-top:16px;">
+                        <button type="submit" class="wb-btn wb-btn--primary"><?php esc_html_e('Save Smart Settings', 'woobooster'); ?></button>
+                    </div>
+                </form>
+
+                <hr style="border:none; border-top:1px solid #eee; margin:20px 0;">
+
+                <div style="display:flex; gap:12px; align-items:center; flex-wrap:wrap;">
+                    <button type="button" id="wb-rebuild-index" class="wb-btn wb-btn--subtle">
+                        <?php esc_html_e('Rebuild Now', 'woobooster'); ?>
+                    </button>
+                    <button type="button" id="wb-purge-index" class="wb-btn wb-btn--subtle wb-btn--danger">
+                        <?php esc_html_e('Clear All Data', 'woobooster'); ?>
+                    </button>
+                    <span id="wb-smart-status" style="color: var(--wb-color-neutral-foreground-2); font-size:13px;">
+                    <?php
+                    if (!empty($last_build)) {
+                        $parts = array();
+                        if (!empty($last_build['copurchase'])) {
+                            $cp = $last_build['copurchase'];
+                            $parts[] = sprintf(
+                                /* translators: 1: product count, 2: seconds, 3: date */
+                                __('Co-purchase: %1$d products in %2$ss (%3$s)', 'woobooster'),
+                                $cp['products'],
+                                $cp['time'],
+                                $cp['date']
+                            );
+                        }
+                        if (!empty($last_build['trending'])) {
+                            $tr = $last_build['trending'];
+                            $parts[] = sprintf(
+                                /* translators: 1: category count, 2: seconds, 3: date */
+                                __('Trending: %1$d categories in %2$ss (%3$s)', 'woobooster'),
+                                $tr['categories'],
+                                $tr['time'],
+                                $tr['date']
+                            );
+                        }
+                        if (!empty($parts)) {
+                            echo esc_html(implode(' · ', $parts));
+                        }
+                    }
+                    ?>
+                    </span>
+                </div>
+            </div>
+        </div>
+        <?php
     }
 
     /**
@@ -424,14 +564,35 @@ class WooBooster_Admin
             return;
         }
 
-        $options = array(
+        // Merge with existing options to preserve smart settings when saving general form and vice versa.
+        $existing = get_option('woobooster_settings', array());
+
+        if (isset($_POST['woobooster_smart_save'])) {
+            // Smart Recommendations form save.
+            $existing['smart_copurchase'] = isset($_POST['woobooster_smart_copurchase']) ? '1' : '0';
+            $existing['smart_trending'] = isset($_POST['woobooster_smart_trending']) ? '1' : '0';
+            $existing['smart_recently_viewed'] = isset($_POST['woobooster_smart_recently_viewed']) ? '1' : '0';
+            $existing['smart_similar'] = isset($_POST['woobooster_smart_similar']) ? '1' : '0';
+            $existing['smart_days'] = isset($_POST['woobooster_smart_days']) ? absint($_POST['woobooster_smart_days']) : 90;
+            $existing['smart_max_relations'] = isset($_POST['woobooster_smart_max_relations']) ? absint($_POST['woobooster_smart_max_relations']) : 20;
+
+            update_option('woobooster_settings', $existing);
+
+            // Reschedule cron based on new settings.
+            WooBooster_Cron::schedule();
+
+            wp_safe_redirect(add_query_arg('settings-updated', 'true', admin_url('admin.php?page=woobooster')));
+            exit;
+        }
+
+        $options = array_merge($existing, array(
             'enabled' => isset($_POST['woobooster_enabled']) ? '1' : '0',
             'section_title' => isset($_POST['woobooster_section_title']) ? sanitize_text_field(wp_unslash($_POST['woobooster_section_title'])) : '',
             'render_method' => isset($_POST['woobooster_render_method']) ? sanitize_key($_POST['woobooster_render_method']) : 'bricks',
             'exclude_outofstock' => isset($_POST['woobooster_exclude_outofstock']) ? '1' : '0',
             'debug_mode' => isset($_POST['woobooster_debug_mode']) ? '1' : '0',
             'delete_data_uninstall' => isset($_POST['woobooster_delete_data']) ? '1' : '0',
-        );
+        ));
 
         update_option('woobooster_settings', $options);
 
@@ -524,6 +685,38 @@ class WooBooster_Admin
                 <h3><?php esc_html_e('Rules Engine', 'woobooster'); ?></h3>
                 <p><?php esc_html_e('Rules are processed in order from top to bottom. The first rule that matches the current product will be used to generate recommendations. If no rules match, the global fallback (Successor/Interchangeable/Category) is used.', 'woobooster'); ?>
                 </p>
+
+                <hr class="wb-hr">
+
+                <h3><?php esc_html_e('Smart Recommendations', 'woobooster'); ?></h3>
+                <p><?php esc_html_e('WooBooster 2.0 introduces four intelligent recommendation strategies that go beyond simple taxonomy matching. Enable them in Settings → Smart Recommendations.', 'woobooster'); ?>
+                </p>
+
+                <ul class="wb-list">
+                    <li>
+                        <strong><?php esc_html_e('Bought Together', 'woobooster'); ?></strong>:
+                        <?php esc_html_e('Analyzes completed orders to find products frequently purchased together. A nightly WP-Cron job scans your order history and stores the top related products in each product\'s metadata. Use the "copurchase" action source in your rules.', 'woobooster'); ?>
+                    </li>
+                    <li>
+                        <strong><?php esc_html_e('Trending', 'woobooster'); ?></strong>:
+                        <?php esc_html_e('Tracks bestselling products per category based on recent sales data. Updated every 6 hours. Products are ranked by sales velocity, not total lifetime sales. Use the "trending" action source.', 'woobooster'); ?>
+                    </li>
+                    <li>
+                        <strong><?php esc_html_e('Recently Viewed', 'woobooster'); ?></strong>:
+                        <?php esc_html_e('Shows products the visitor has recently browsed. Uses a lightweight browser cookie — zero database queries. The last 20 viewed products are tracked. Use the "recently_viewed" action source.', 'woobooster'); ?>
+                    </li>
+                    <li>
+                        <strong><?php esc_html_e('Similar Products', 'woobooster'); ?></strong>:
+                        <?php esc_html_e('Finds products with a similar price (±25%) in the same category, ordered by total sales. No pre-computation needed — results are cached in transients for 24 hours. Use the "similar" action source.', 'woobooster'); ?>
+                    </li>
+                </ul>
+
+                <h4><?php esc_html_e('How it works', 'woobooster'); ?></h4>
+                <p><?php esc_html_e('Smart strategies are added as new Action Sources in your rules. You can combine them with traditional taxonomy-based actions. Example: show 3 "Bought Together" products and 3 from a specific category in a single rule.', 'woobooster'); ?></p>
+                <p><?php esc_html_e('No new database tables are created. Co-purchase data is stored in product postmeta, trending data in WordPress transients, and recently viewed in a browser cookie.', 'woobooster'); ?></p>
+
+                <h4><?php esc_html_e('Manual Controls', 'woobooster'); ?></h4>
+                <p><?php esc_html_e('Use the "Rebuild Now" button in Settings to manually trigger the co-purchase and trending index builds. Use "Clear All Data" to purge all computed recommendation data.', 'woobooster'); ?></p>
             </div>
         </div>
         <?php
@@ -698,6 +891,80 @@ class WooBooster_Admin
                 $count
             ),
             'count' => $count,
+        ));
+    }
+
+    /**
+     * AJAX: Rebuild Smart Recommendations index.
+     */
+    public function ajax_rebuild_index()
+    {
+        check_ajax_referer('woobooster_admin', 'nonce');
+
+        if (!current_user_can('manage_woocommerce')) {
+            wp_send_json_error(array('message' => __('Permission denied.', 'woobooster')));
+        }
+
+        $cron = new WooBooster_Cron();
+        $results = array();
+
+        $options = get_option('woobooster_settings', array());
+
+        if (!empty($options['smart_copurchase'])) {
+            $results['copurchase'] = $cron->run_copurchase();
+        }
+
+        if (!empty($options['smart_trending'])) {
+            $results['trending'] = $cron->run_trending();
+        }
+
+        $parts = array();
+        if (!empty($results['copurchase'])) {
+            $cp = $results['copurchase'];
+            $parts[] = sprintf(
+                __('Co-purchase: %1$d products in %2$ss', 'woobooster'),
+                $cp['products'],
+                $cp['time']
+            );
+        }
+        if (!empty($results['trending'])) {
+            $tr = $results['trending'];
+            $parts[] = sprintf(
+                __('Trending: %1$d categories in %2$ss', 'woobooster'),
+                $tr['categories'],
+                $tr['time']
+            );
+        }
+
+        $message = !empty($parts) ? implode(' · ', $parts) : __('No strategies enabled. Enable at least one above.', 'woobooster');
+
+        wp_send_json_success(array(
+            'message' => $message,
+            'results' => $results,
+        ));
+    }
+
+    /**
+     * AJAX: Purge all Smart Recommendations data.
+     */
+    public function ajax_purge_index()
+    {
+        check_ajax_referer('woobooster_admin', 'nonce');
+
+        if (!current_user_can('manage_woocommerce')) {
+            wp_send_json_error(array('message' => __('Permission denied.', 'woobooster')));
+        }
+
+        $counts = WooBooster_Cron::purge_all();
+        $total = $counts['copurchase'] + $counts['trending'] + $counts['similar'];
+
+        wp_send_json_success(array(
+            'message' => sprintf(
+                /* translators: %d: total items deleted */
+                __('Cleared %d items.', 'woobooster'),
+                $total
+            ),
+            'counts' => $counts,
         ));
     }
 }

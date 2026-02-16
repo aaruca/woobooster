@@ -3,7 +3,7 @@
  * Plugin Name:       WooBooster
  * Plugin URI:        https://woobooster.com
  * Description:       A rule-based product recommendation engine for WooCommerce with native Bricks Builder integration.
- * Version:           1.5.1
+ * Version:           2.0.0
  * Requires at least: 6.0
  * Requires PHP:      7.4
  * Author:            Alejandro Ruca
@@ -19,7 +19,7 @@ if (!defined('ABSPATH')) {
 }
 
 // Define plugin constants.
-define('WOOBOOSTER_VERSION', '1.5.1');
+define('WOOBOOSTER_VERSION', '2.0.0');
 define('WOOBOOSTER_DB_VERSION', '1.4.0');
 define('WOOBOOSTER_FILE', __FILE__);
 define('WOOBOOSTER_PATH', plugin_dir_path(__FILE__));
@@ -72,6 +72,7 @@ final class WooBooster
         require_once WOOBOOSTER_PATH . 'includes/class-woobooster-rule.php';
         require_once WOOBOOSTER_PATH . 'includes/class-woobooster-matcher.php';
         require_once WOOBOOSTER_PATH . 'includes/class-woobooster-shortcode.php';
+        require_once WOOBOOSTER_PATH . 'includes/class-woobooster-cron.php';
 
         if (is_admin()) {
             require_once WOOBOOSTER_PATH . 'includes/class-woobooster-activator.php';
@@ -153,6 +154,11 @@ final class WooBooster
         }
 
         WooBooster_Shortcode::init();
+
+        // Initialize Smart Recommendations cron.
+        $cron = new WooBooster_Cron();
+        $cron->init();
+        WooBooster_Cron::schedule();
     }
 
     /**
@@ -246,7 +252,8 @@ final class WooBooster
      */
     public function deactivate()
     {
-        // Rules persist on deactivation.
+        // Unschedule cron events on deactivation.
+        WooBooster_Cron::unschedule();
     }
 
     /**

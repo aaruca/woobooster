@@ -26,6 +26,51 @@ class WooBooster_Frontend
         // products when no rule matches.
         remove_action('woocommerce_after_single_product_summary', 'woocommerce_output_related_products', 20);
         add_action('woocommerce_after_single_product_summary', array($this, 'render_recommendations'), 20);
+
+        // Track recently viewed products in a cookie.
+        $options = get_option('woobooster_settings', array());
+        if (!empty($options['smart_recently_viewed'])) {
+            add_action('template_redirect', array($this, 'track_recently_viewed'));
+        }
+    }
+
+    /**
+     * Track the current product in a "recently viewed" cookie.
+     */
+    public function track_recently_viewed()
+    {
+        if (!is_singular('product')) {
+            return;
+        }
+
+        $product_id = get_the_ID();
+        if (!$product_id) {
+            return;
+        }
+
+        $max_items = 20;
+        $viewed = array();
+
+        if (isset($_COOKIE['woobooster_recently_viewed'])) {
+            $raw = sanitize_text_field(wp_unslash($_COOKIE['woobooster_recently_viewed']));
+            $viewed = array_filter(array_map('absint', explode(',', $raw)));
+        }
+
+        // Remove current product if already in the list, then prepend it.
+        $viewed = array_diff($viewed, array($product_id));
+        array_unshift($viewed, $product_id);
+        $viewed = array_slice($viewed, 0, $max_items);
+
+        // Set cookie for 30 days, site-wide.
+        setcookie(
+            'woobooster_recently_viewed',
+            implode(',', $viewed),
+            time() + (30 * DAY_IN_SECONDS),
+            COOKIEPATH,
+            COOKIE_DOMAIN,
+            is_ssl(),
+            false // Not HttpOnly — needs to be readable by JS if needed.
+        );
     }
 
     /**

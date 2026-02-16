@@ -175,6 +175,10 @@ class WooBooster_Rule_List extends WP_List_Table
             'category' => __('Category', 'woobooster'),
             'tag' => __('Tag', 'woobooster'),
             'attribute' => __('Same Attribute', 'woobooster'),
+            'copurchase' => __('Bought Together', 'woobooster'),
+            'trending' => __('Trending', 'woobooster'),
+            'recently_viewed' => __('Recently Viewed', 'woobooster'),
+            'similar' => __('Similar Products', 'woobooster'),
         );
 
         $actions = WooBooster_Rule::get_actions($item->id);
