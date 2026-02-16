@@ -262,47 +262,22 @@ class WooBooster_Rule_Form
 
             echo '<div class="wb-action-row" data-index="' . esc_attr($index) . '">';
 
-            // Header with Remove.
-            echo '<div class="wb-action-row__header">';
-            echo '<span class="wb-action-row__title">' . esc_html__('Action', 'woobooster') . ' <span class="wb-action-number">' . ($index + 1) . '</span></span>';
-            if ($index > 0 || count($actions) > 1) {
-                echo '<button type="button" class="wb-btn wb-btn--danger wb-btn--xs wb-remove-action" title="' . esc_attr__('Remove Action', 'woobooster') . '">&times;</button>';
-            }
-            echo '</div>';
-
-            echo '<div class="wb-action-row__body">';
-
             // Source Type.
-            echo '<div class="wb-field">';
-            echo '<label class="wb-field__label">' . esc_html__('Source Type', 'woobooster') . '</label>';
-            echo '<div class="wb-field__control">';
-            echo '<select name="' . esc_attr($prefix . '[action_source]') . '" class="wb-select wb-action-source">';
+            echo '<select name="' . esc_attr($prefix . '[action_source]') . '" class="wb-select wb-action-source" style="width: auto; flex-shrink: 0;">';
             echo '<option value="category"' . selected($a_source, 'category', false) . '>' . esc_html__('Category', 'woobooster') . '</option>';
             echo '<option value="tag"' . selected($a_source, 'tag', false) . '>' . esc_html__('Tag', 'woobooster') . '</option>';
             echo '<option value="attribute"' . selected($a_source, 'attribute', false) . '>' . esc_html__('Same Attribute', 'woobooster') . '</option>';
             echo '</select>';
-            echo '<p class="wb-field__desc wb-attribute-desc" style="display:none;">' . esc_html__('"Same Attribute" uses the condition\'s attribute and value.', 'woobooster') . '</p>';
-            echo '</div></div>';
 
-            // Source Value.
-            echo '<div class="wb-field wb-action-value-field">';
-            echo '<label class="wb-field__label">' . esc_html__('Source Value', 'woobooster') . '</label>';
-            echo '<div class="wb-field__control">';
-            echo '<div class="wb-autocomplete">';
-            echo '<input type="text" class="wb-input wb-autocomplete__input wb-action-value-display" placeholder="' . esc_attr__('Search terms…', 'woobooster') . '" value="' . esc_attr($a_label) . '" autocomplete="off">';
+            // Value Autocomplete.
+            echo '<div class="wb-autocomplete wb-action-value-wrap" style="flex: 1; min-width: 200px;">';
+            echo '<input type="text" class="wb-input wb-autocomplete__input wb-action-value-display" placeholder="' . esc_attr__('Value…', 'woobooster') . '" value="' . esc_attr($a_label) . '" autocomplete="off">';
             echo '<input type="hidden" name="' . esc_attr($prefix . '[action_value]') . '" class="wb-action-value-hidden" value="' . esc_attr($a_value) . '">';
             echo '<div class="wb-autocomplete__dropdown"></div>';
             echo '</div>';
-            echo '</div></div>';
-
-            // Order By & Limit Row.
-            echo '<div class="wb-field-row">';
 
             // Order By.
-            echo '<div class="wb-field">';
-            echo '<label class="wb-field__label">' . esc_html__('Order By', 'woobooster') . '</label>';
-            echo '<div class="wb-field__control">';
-            echo '<select name="' . esc_attr($prefix . '[action_orderby]') . '" class="wb-select">';
+            echo '<select name="' . esc_attr($prefix . '[action_orderby]') . '" class="wb-select" style="width: auto; flex-shrink: 0;" title="' . esc_attr__('Order By', 'woobooster') . '">';
             $orderbys = array(
                 'rand' => __('Random', 'woobooster'),
                 'date' => __('Newest', 'woobooster'),
@@ -315,18 +290,15 @@ class WooBooster_Rule_Form
                 echo '<option value="' . esc_attr($key) . '"' . selected($a_orderby, $key, false) . '>' . esc_html($label) . '</option>';
             }
             echo '</select>';
-            echo '</div></div>';
 
             // Limit.
-            echo '<div class="wb-field">';
-            echo '<label class="wb-field__label">' . esc_html__('Limit', 'woobooster') . '</label>';
-            echo '<div class="wb-field__control">';
-            echo '<input type="number" name="' . esc_attr($prefix . '[action_limit]') . '" value="' . esc_attr($a_limit) . '" min="1" class="wb-input wb-input--sm">';
-            echo '</div></div>';
+            echo '<input type="number" name="' . esc_attr($prefix . '[action_limit]') . '" value="' . esc_attr($a_limit) . '" min="1" class="wb-input wb-input--sm" style="width: 70px;" title="' . esc_attr__('Limit', 'woobooster') . '">';
 
-            echo '</div>'; // .wb-field-row
+            // Remove Button.
+            if ($index > 0 || count($actions) > 1) {
+                echo '<button type="button" class="wb-btn wb-btn--subtle wb-btn--xs wb-remove-action" title="' . esc_attr__('Remove', 'woobooster') . '">&times;</button>';
+            }
 
-            echo '</div>'; // .wb-action-row__body
             echo '</div>'; // .wb-action-row
         }
 

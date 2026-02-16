@@ -1022,3 +1022,44 @@
   white-space: nowrap;
   font-size: var(--wb-font-size-sm);
 }
+
+/* ═══════════════════════════════════════════════════════════════════
+   19. ACTION REPEATER (NEW)
+   ═══════════════════════════════════════════════════════════════════ */
+.wb-action-row {
+  display: flex;
+  align-items: center;
+  gap: var(--wb-spacing-md);
+  margin-bottom: var(--wb-spacing-sm);
+  padding: var(--wb-spacing-sm);
+  background: var(--wb-color-neutral-background-2);
+  border-radius: var(--wb-radius-sm);
+  border: 1px solid transparent;
+  flex-wrap: wrap;
+}
+
+.wb-action-row:hover {
+  border-color: var(--wb-color-neutral-stroke-1);
+  background: #fff;
+  box-shadow: var(--wb-shadow-1);
+}
+
+.wb-action-row:last-of-type {
+  margin-bottom: var(--wb-spacing-md);
+}
+
+.wb-action-source {
+  min-width: 140px;
+}
+
+.wb-action-value-wrap {
+  flex-grow: 1;
+}
+
+/* Ensure inputs in rows are compact */
+.wb-action-row .wb-input,
+.wb-action-row .wb-select {
+  margin-bottom: 0;
+  font-size: 13px;
+  padding: 8px 12px;
+}

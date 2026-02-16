@@ -231,6 +231,7 @@
     initDeleteConfirm();
     initRuleTester();
     initCheckUpdate();
+    initImportExport();
   });
 
   /* ── Action Repeater ─────────────────────────────────────────────── */
@@ -689,5 +690,75 @@
           result.textContent = 'Network error. Check your connection.';
         });
     });
+  }
+  /* ── Import / Export ────────────────────────────────────────────── */
+
+  function initImportExport() {
+    var exportBtn = document.getElementById('wb-export-rules');
+    var importBtn = document.getElementById('wb-import-rules-btn');
+    var fileInput = document.getElementById('wb-import-file');
+
+    if (exportBtn) {
+      exportBtn.addEventListener('click', function () {
+        // Direct download via window.location
+        window.location.href = cfg.ajaxUrl + '?action=woobooster_export_rules&nonce=' + cfg.nonce;
+      });
+    }
+
+    if (importBtn && fileInput) {
+      importBtn.addEventListener('click', function () {
+        fileInput.click();
+      });
+
+      fileInput.addEventListener('change', function () {
+        if (!fileInput.files.length) return;
+        var file = fileInput.files[0];
+
+        // Simple validation
+        if (file.type !== 'application/json' && !file.name.endsWith('.json')) {
+          alert('Please select a valid JSON file.');
+          return;
+        }
+
+        var reader = new FileReader();
+        reader.onload = function (e) {
+          var jsonContent = e.target.result;
+          uploadImport(jsonContent);
+        };
+        reader.readAsText(file);
+      });
+    }
+
+    function uploadImport(jsonContent) {
+      if (!confirm('Are you sure you want to import rules? This will add to existing rules.')) return;
+
+      var fd = new FormData();
+      fd.append('action', 'woobooster_import_rules');
+      fd.append('nonce', cfg.nonce);
+      fd.append('json', jsonContent);
+
+      importBtn.disabled = true;
+      importBtn.textContent = 'Importing…';
+
+      fetch(cfg.ajaxUrl, { method: 'POST', body: fd })
+        .then(function (r) { return r.json(); })
+        .then(function (res) {
+          importBtn.disabled = false;
+          importBtn.textContent = 'Import';
+          fileInput.value = ''; // Reset
+
+          if (res.success) {
+            alert(res.data.message);
+            window.location.reload();
+          } else {
+            alert(res.data.message || 'Error importing rules.');
+          }
+        })
+        .catch(function () {
+          importBtn.disabled = false;
+          importBtn.textContent = 'Import';
+          alert('Network error.');
+        });
+    }
   }
 })();
